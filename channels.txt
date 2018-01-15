@@ -1,0 +1,4 @@
+
+#0DAY-MP3S irc.criten.net:6667
+#ELITEWAREZ irc.criten.net:6667
+    blas

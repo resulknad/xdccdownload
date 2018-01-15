@@ -1,0 +1,272 @@
+Text to send: :irc.esylum.net NOTICE AUTH :*** Looking up your hostname...
+
+:irc.esylum.net NOTICE AUTH :*** Found your hostname
+
+pong received:irc.esylum.net 001 asdaskdljwelknj :Welcome to the Criten IRC Network asdaskdljwelknj!asdasdasd@public-docking-pat-cx-mapped-0026.ethz.ch
+
+:irc.esylum.net 002 asdaskdljwelknj :Your host is irc.esylum.net, running version Nemesis2.0(STABLE)
+
+:irc.esylum.net 003 asdaskdljwelknj :This server was created Tue Oct 18 2016 at 11:55:28 PDT
+
+:irc.esylum.net 004 asdaskdljwelknj irc.esylum.net Nemesis2.0(STABLE) iowghraAsORTVSxNCWqBzvdHtGpI lvhopsmntikrRcaqOALQbSeIKVfMCuzNTGjZ
+
+:irc.esylum.net 005 asdaskdljwelknj CMDS=KNOCK,MAP,DCCALLOW,USERIP,STARTTLS UHNAMES NAMESX SAFELIST HCN MAXCHANNELS=30 CHANLIMIT=#:30 MAXLIST=b:60,e:60,I:60 NICKLEN=30 CHANNELLEN=32 TOPICLEN=307 KICKLEN=307 AWAYLEN=307 :are supported by this server
+
+:irc.esylum.net 005 asdaskdljwelknj MAXTARGETS=20 WALLCHOPS WATCH=128 WATCHOPTS=A SILENCE=15 MODES=12 CHANTYPES=# PREFIX=(qaohv)~&@%+ CHANMODES=beI,kfL,lj,psmntirRcOAQKVCuzNSMTGZ NETWORK=Criten CASEMAPPING=ascii EXTBAN=~,qjncrRa ELIST=MNUCT :are supported by this server
+
+:irc.esylum.net 005 asdaskdljwelknj STATUSMSG=~&@%+ EXCEPTS INVEX :are supported by this server
+
+:irc.esylum.net 251 asdaskdljwelknj :There are 258 users and 1974 invisible on 10 servers
+
+:irc.esylum.net 252 asdaskdljwelknj 17 :operator(s) online
+
+:irc.esylum.net 253 asdaskdljwelknj 1 :unknown connection(s)
+
+:irc.esylum.net 254 asdaskdljwelknj 279 :channels formed
+
+:irc.esylum.net 255 asdaskdljwelknj :I have 410 clients and 1 servers
+
+:irc.esylum.net 265 asdaskdljwelknj 410 972 :Current local users 410, max 972
+
+:irc.esylum.net 266 asdaskdljwelknj 2232 8866 :Current global users 2232, max 8866
+
+:irc.esylum.net 375 asdaskdljwelknj :- irc.esylum.net Message of the Day - 
+
+:irc.esylum.net 372 asdaskdljwelknj :- 31/7/2015 8:42
+
+:irc.esylum.net 372 asdaskdljwelknj :- Welcome to the CRiTEN iRC Network
+
+:irc.esylum.net 372 asdaskdljwelknj :- Criten reserves the right to deny network access to any user(s) without warning o
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- [Server Rules & Policies]
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :-  No abusive/unauthorized bots
+
+:irc.esylum.net 372 asdaskdljwelknj :-  No Flooding, spamming, mass invites/msgs, or other known network abuse
+
+:irc.esylum.net 372 asdaskdljwelknj :-  Illegal activities are prohibited on all Criten Servers
+
+:irc.esylum.net 372 asdaskdljwelknj :-  No whining
+
+:irc.esylum.net 372 asdaskdljwelknj :-  Do not ask for an o:line
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- [Disclaimer]
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- IRC is an unmoderated medium. We take no responsibility and disclaim all legal li
+
+:irc.esylum.net 372 asdaskdljwelknj :-  host without warning or explanation. By using these servers you agree to these t
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- [Network Information]
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- .:Pools/RR
+
+:irc.esylum.net 372 asdaskdljwelknj :- Primary       - irc.criten.net (IPv6 READY)
+
+:irc.esylum.net 372 asdaskdljwelknj :- USA           - irc.us.criten.net
+
+:irc.esylum.net 372 asdaskdljwelknj :- Europe        - irc.eu.criten.net
+
+:irc.esylum.net 372 asdaskdljwelknj :- Asia          - irc.as.criten.net
+
+:irc.esylum.net 372 asdaskdljwelknj :- South America - irc.sa.criten.net
+
+:irc.esylum.net 372 asdaskdljwelknj :- SSL           - irc.ssl.criten.net +7500 (IPv6 READY)
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- .:Public IRC Ports
+
+:irc.esylum.net 372 asdaskdljwelknj :- 6665, 6666, 6667, 6668, 6669, 7000, & 7500(SSL)
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- For assistance - #Help
+
+:irc.esylum.net 372 asdaskdljwelknj :- 
+
+:irc.esylum.net 372 asdaskdljwelknj :- Report any suspected abuse to network administrators - #Help
+
+:irc.esylum.net 376 asdaskdljwelknj :End of /MOTD command.
+
+:asdaskdljwelknj MODE asdaskdljwelknj :+iwx
+
+:Global!services@criten.net NOTICE asdaskdljwelknj :[Logon News - Jan 19 2014] Welcome to Criten iRC Network. To register your nick: Type: /ns register password email :: To request a vhost: Type: /hs request host.you.want :: Type /list to view all available channels
+
+:Global!services@criten.net NOTICE asdaskdljwelknj :[Logon News - Aug 09 2015] SSL via irc.ssl.criten.net +7500 :: IPv6 via irc6.criten.net (SSL Ready (+7500))
+
+:asdaskdljwelknj!asdasdasd@CRiTEN-C7785254.ethz.ch JOIN :#0day-mp3s
+
+:irc.esylum.net 332 asdaskdljwelknj #0day-mp3s :4welcome to #0day-mp3s , !search in #0day-mp3s-chat | recruiting bot owners and dedicated line owners, /msg satan 
+
+:irc.esylum.net 333 asdaskdljwelknj #0day-mp3s satan 1509395575
+
+:irc.esylum.net 353 asdaskdljwelknj = #0day-mp3s :asdaskdljwelknj Meisemann xlobqv reddog Lord_philster ronjarotzmales23 iqxlxe calemitch Bond007 +Oday-YEA14649 Gekarton73 ima_ iceee Dogsbody lwrvqs dragonlor j0eyr4mone narizgrande Alexandre1er OneStepAhead init2wnit bhgeao Ehlana Raptor kevin madre AntEazy sandra201152X hyperions mastoras rsaml74 Pubman @rdnsx ihlypudlbavxyfn Horst kid2885 hoetz atm0 kasdlowd343 fuzzy2000 RONDIG xweasel outegs Master1234QWERTZ 
+
+:irc.esylum.net 353 asdaskdljwelknj = #0day-mp3s :WorldTest your_nick sim Cuban sqrt2 ljwqos diabloato S3K t0ubab0k00mi flexperc coolman47111 ltycgn juan- jhyjnx HannesGee9 khalel trill_ass_g osakaflu Lord_XetroV2 mac your_nicks thinpuppy_ tbabdy krylon dobedobedobedo yiddo Alteffor RG191 Jos2 qsirwe HerculesHD870 hostile baFfLe baccatu4 Carlit0 RS741111111118 HerculesHD justm3 ClownBaby Elmer bodecove MrBonesHOK NeChRiST ixirc1 cashback ilovepancakes ~satan 
+
+:irc.esylum.net 353 asdaskdljwelknj = #0day-mp3s :jollyrogr catfish nobster slon jc23 &cba @Oday-Pandemic +[TranceBot]-[22] devilish media SuPaJeRm hyperion u-nervs dbx Hotpot33 bobjones29 xxgmanxx Sapient BiGRiGNiG d0pefish campee D737373 ilgiornodopo noticz Mahjong +Oday-YEA5 Juro nack blubbermann nikoblack Atlantics DJ-ArcAngel claytor joemanbike wyrddd &[Used] SlaySnow werna ingomeier6789 &s-c-o-o-t ThumperDone Ouango oh216 Fifty1Physicist Xray Wikked @SliZeR 
+
+:irc.esylum.net 353 asdaskdljwelknj = #0day-mp3s :+Oday-YEA3 jdub66666 boffi_ w0 hubi euiwer Segway SSDC5 rm +Oday-YEA2 +[FutureBot]-[25] +[TranceBot]-[20] +[TranceBot]-[06] +Oday-YEA7 +Oday-YEA6 meuerro +Oday-YEA8 MDN dfh444sgd CavalierZ_24 alpha_ cybercj L- whpkte t4rpits Eldoe zen dddmaster sb2002 tstr &hades +Oday-YEA1 ShuTdowN +[TranceBot]-[39] +Oday-YEA0 +[TranceBoT]-[21] frankie +[FutureBot]-[13] +[TranceBot]-[27] +Oday-YEA4 
+
+:irc.esylum.net 366 asdaskdljwelknj #0day-mp3s :End of /NAMES list.
+
+:Oday-YEA5!iroffer@CRiTEN-19E8E1F9.dynamic.kabel-deutschland.de PRIVMSG #0DAY-MP3S :#49   5x [ 41M] [HipHop]_Reckonize_Real_and_Moka_Only-Vibes_EP-2017-FTD.tar
+
+:[TranceBot]-[22]!djx0x@The.Trance.22 PRIVMSG #0DAY-MP3S :#163 11x [ 19M] 05,04Red.Hot.Chili.Peppers-In.Love.Dying-SINGLE-WEB-2013-ENTiTLED.tar
+
+:Oday-YEA0!root@CRiTEN-32C46354.ip-176-31-113.eu PRIVMSG #0DAY-MP3S :#28    11x [ 84M] [Alternative]_JUD-Generation_Vulture-2016-r35.tar
+
+:Oday-YEA7!root@CRiTEN-2B38C622.ip-5-39-76.eu PRIVMSG #0DAY-MP3S :#43  4x [ 55M] [Country]_Kari_Arnett-Midwestern_Skyline-2015-FATHEAD.tar
+
+:Oday-YEA5!iroffer@CRiTEN-19E8E1F9.dynamic.kabel-deutschland.de PRIVMSG #0DAY-MP3S :#50   5x [7.8M] [Rap]_Guizmo-Escort_Girl-WEB-FR-2017-H5N1.tar
+
+:[TranceBot]-[20]!Trance@The.Batcave.20 PRIVMSG #0DAY-MP3S :#20 13x [ 66M] 01,05VA-Ova.Hype.Riddim-(2H2175)-WEB-2017-iHR.tar
+
+:Oday-YEA6!root@CRiTEN-B575E3C0.ip-37-59-39.eu PRIVMSG #0DAY-MP3S :#58  3x [ 82M] [HipHop]_Theory_Hazit-Bless_Your_Food_(Dalucks)-BONUS_TRACKS-WEB-2017-GCP.tar
+
+:[TranceBot]-[39]!cave@CRiTEN-86D9853A.ip-37-187-115.eu PRIVMSG #0DAY-MP3S :#19    3x [268M] 09,01Ruthie.Foster-Joy.Comes.Back-CD-FLAC-2017-FORSAKEN.tar
+
+:Oday-YEA3!root@CRiTEN-3EBB230.rev.poneytelecom.eu PRIVMSG #0DAY-MP3S :#27   4x [232M] [Industrial]_VA-Maschinenfest_2016-2CD-2016-FWYH.tar
+
+:[FutureBot]-[25]!blow@The.Batcave.25 PRIVMSG #0DAY-MP3S :#17   4x [ 96M] 01,02[MP3-Rock]-VA-The.Runaways.Music.from.and.inspired.by.the.Motion.Picture-OST-2010-KLV.INT.tar
+
+:[TranceBot]-[22]!djx0x@The.Trance.22 PRIVMSG #0DAY-MP3S :#164 17x [175M] 05,04Red.Hot.Chili.Peppers-Legendary.FM.Broadcasts.Woodstock.Festival.NY.14th.August.1994-WEB-2017-ENTiTLED.iNT.tar
+
+:[FutureBot]-[13]!batcave@the.batve.13 PRIVMSG #0DAY-MP3S :#21   2x [121M] 04,01[Electronic]_Bhambhamhara-Bhambhamharas_Schoene_Welt-2015-FWYH.tar
+
+:Oday-YEA0!root@CRiTEN-32C46354.ip-176-31-113.eu PRIVMSG #0DAY-MP3S :#29    11x [ 60M] [Jazz]_Celia_Vergara-Time_To_Play-2016-VPE.tar
+
+:Oday-YEA5!iroffer@CRiTEN-19E8E1F9.dynamic.kabel-deutschland.de PRIVMSG #0DAY-MP3S :#51   6x [102M] [Country]_Pete_Wolf_Band-Happy_Man-WEB-2017-VOiCE.tar
+
+:[TranceBoT]-[21]!DjTiesto@The.Batcave.21 PRIVMSG #0DAY-MP3S :#42 1x [ 13M] 09,01Miss.K8.Ft.Nolz.-.Resolute.Power.(Syndicate.2017.Anthem)-(MOHDIGI209)-WEB-2017-MMS.tar
+
+:Oday-YEA2!root@CRiTEN-2C969E14.ip-37-59-62.eu NOTICE asdaskdljwelknj :** Sending you pack #70 ("[Indie]_Alt-J-Relaxer-2017-FATHEAD.tar"), which is 67MB. (resume supported)
+
+:Oday-YEA7!root@CRiTEN-2B38C622.ip-5-39-76.eu PRIVMSG #0DAY-MP3S :#44  2x [136M] [InstrumentalRock]_Various_Artists-Nine_Ears_Nine_Bands-2CD-2017-CaHeSo.tar
+
+:Oday-YEA6!root@CRiTEN-B575E3C0.ip-37-59-39.eu PRIVMSG #0DAY-MP3S :#59  3x [ 60M] [Reggae]_Tropidelic-Heavy_Is_The_Head-2017-FATHEAD.tar
+
+:Oday-YEA5!iroffer@CRiTEN-19E8E1F9.dynamic.kabel-deutschland.de PRIVMSG #0DAY-MP3S :#52   8x [ 67M] [Soul]_VA-Birth_Of_Soul_Special_Detroit_Edition_1961-64-2017-gF.tar
+
+:Oday-YEA3!root@CRiTEN-3EBB230.rev.poneytelecom.eu PRIVMSG #0DAY-MP3S :#28  12x [ 82M] [Metal]_We_Came_As_Romans-Cold_Like_War-2017-DeBT.tar
+
+:Oday-YEA0!root@CRiTEN-32C46354.ip-176-31-113.eu PRIVMSG #0DAY-MP3S :#30     9x [ 65M] [Folk]_Tim_Moxam-Soft_Summer-2016-FNT.tar
+
+:[TranceBot]-[39]!cave@CRiTEN-86D9853A.ip-37-187-115.eu PRIVMSG #0DAY-MP3S :#20    1x [365M] 09,01Stan.Getz-Moments.In.Time-CD-FLAC-2016-FORSAKEN.tar
+
+:[TranceBot]-[22]!djx0x@The.Trance.22 PRIVMSG #0DAY-MP3S :#165  9x [ 19M] 05,04Red.Hot.Chili.Peppers-Magpies.On.Fire.Victorian.Machinery-SINGLE-WEB-2012-ENTiTLED.tar
+
+:[TranceBot]-[20]!Trance@The.Batcave.20 PRIVMSG #0DAY-MP3S :#21  9x [316M] 01,05VA-Party.All.Night.Vol.4.(Miami.Dancefloor)-(NXT17024)-WEB-2017-iHR.tar
+
+:[TranceBoT]-[21]!DjTiesto@The.Batcave.21 PRIVMSG #0DAY-MP3S :#43 1x [ 99M] 09,01Moogly-Mizik-(HERMR040)-WEB-2015-CBR.tar
+
+:Oday-YEA2!root@CRiTEN-2C969E14.ip-37-59-62.eu PRIVMSG asdaskdljwelknj :DCC SEND [Indie]_Alt-J-Relaxer-2017-FATHEAD.tar 624639689 59474 70359040
+
+:[FutureBot]-[25]!blow@The.Batcave.25 PRIVMSG #0DAY-MP3S :#18   4x [ 30M] 01,02[MP3-Trance]-Stormtraxx-Seven.Days-BP01007-12-Vinyl-2000-SOB.tar
+
+:Oday-YEA5!iroffer@CRiTEN-19E8E1F9.dynamic.kabel-deutschland.de PRIVMSG #0DAY-MP3S :#53   1x [101M] [Jazz]_Lonnie_Smith_Trio-Purple_Haze_-_Tribute_To_Jimi_Hendrix-1994-GCP.tar
+
+:Oday-YEA7!root@CRiTEN-2B38C622.ip-5-39-76.eu PRIVMSG #0DAY-MP3S :#45  3x [254M] [Trance]_Ryan_Farish-Primary_Colors-2CD-2017-D2H.tar
+
+:[FutureBot]-[13]!batcave@the.batve.13 PRIVMSG #0DAY-MP3S :#22   3x [ 72M] 04,01[Electronic]_Etienne_De_Crecy-Presents_Super_Discount_3-2015-SNOOK.tar
+
+:[TranceBot]-[22]!djx0x@The.Trance.22 PRIVMSG #0DAY-MP3S :#166 13x [ 17M] 05,04Red.Hot.Chili.Peppers-Never.Is.A.Long.Time.Love.Of.Your.Life-SINGLE-WEB-2012-ENTiTLED.tar
+
+:Oday-YEA3!root@CRiTEN-3EBB230.rev.poneytelecom.eu PRIVMSG #0DAY-MP3S :#29   4x [120M] [Rock]_Lucinda_Williams-This_Sweet_Old_World-(Promo)-2017-404.tar
+
+:Oday-YEA0!root@CRiTEN-32C46354.ip-176-31-113.eu PRIVMSG #0DAY-MP3S :#31    28x [102M] [Rap]_Moneybagg_Yo_And_Yo_Gotti-2_Federal-(Bootleg)-2016-CR.tar
+
+:Oday-YEA6!root@CRiTEN-B575E3C0.ip-37-59-39.eu PRIVMSG #0DAY-MP3S :#60 12x [ 70M] [Punk]_VA-Fat_Wreck_Chords_Presents_The_War_On_Errorism_Part_2.1_The_Idiot_Has_Taken_Over-2017-FNT.tar
+
+:Oday-YEA5!iroffer@CRiTEN-19E8E1F9.dynamic.kabel-deutschland.de PRIVMSG #0DAY-MP3S :#54   4x [144M] [Alternative]_Antimatter-Live_Between_The_Earth_and_Clouds-2017-RTB.tar
+
+:Oday-YEA2!root@CRiTEN-2C969E14.ip-37-59-62.eu PRIVMSG #0DAY-MP3S :#30   30x [ 93M] [HardRock]_Warrant-Louder_Harder_Faster-2017-RiBS.tar
+
+:[TranceBot]-[39]!cave@CRiTEN-86D9853A.ip-37-187-115.eu PRIVMSG #0DAY-MP3S :#21    2x [258M] 09,01Strand.of.Oaks-Hard.Love-CD-FLAC-2017-FORSAKEN.tar
+
+:Oday-YEA7!root@CRiTEN-2B38C622.ip-5-39-76.eu PRIVMSG #0DAY-MP3S :#46  1x [ 98M] [Classical]_Elizabeth_Hainen-Music_for_Solo_Harp-2004-NOiR.tar
+
+:[TranceBot]-[20]!Trance@The.Batcave.20 PRIVMSG #0DAY-MP3S :#22  5x [161M] 01,05VA-Sirup.Deep.Anthems.Miami.2017-(SIR923)-WEB-2017-iHR.tar
+
+:[TranceBoT]-[21]!DjTiesto@The.Batcave.21 PRIVMSG #0DAY-MP3S :#44 1x [ 35M] 09,01Morttagua.and.Gaby.Endo-Urania-(TM012)-WEB-2017-CBR.tar
+
+:[FutureBot]-[25]!blow@The.Batcave.25 PRIVMSG #0DAY-MP3S :#19   3x [285M] 01,02[Rap]_Buzzy_Bwoy--En_Visite-CD-FR-2015-WUS_INT.tar
+
+:[TranceBot]-[22]!djx0x@The.Trance.22 PRIVMSG #0DAY-MP3S :#167 13x [ 23M] 05,04Red.Hot.Chili.Peppers-Pink.As.Floyd.Your.Eyes.Girl-SINGLE-WEB-2013-ENTiTLED.tar
+
+:Oday-YEA3!root@CRiTEN-3EBB230.rev.poneytelecom.eu PRIVMSG #0DAY-MP3S :#30  44x [104M] [HipHop]_Yelawolf-Trial_By_Fire-2017-GCP.tar
+
+:[FutureBot]-[13]!batcave@the.batve.13 PRIVMSG #0DAY-MP3S :#23   6x [ 97M] 04,01[HeavyMetal]_Burning_Point-Burning_Point-2015-gF.tar
+
+:Oday-YEA5!iroffer@CRiTEN-19E8E1F9.dynamic.kabel-deutschland.de PRIVMSG #0DAY-MP3S :#55   2x [ 69M] [Darkwave]_Stillife-Shattered_Bonus_CD-Limited_Edition-2017-AMOK.tar
+
+:Oday-YEA6!root@CRiTEN-B575E3C0.ip-37-59-39.eu PRIVMSG #0DAY-MP3S :#61  6x [128M] [Neofolk]_Heilung-LIFA-WEB-2017-AMOK.tar
+
+:Oday-YEA0!root@CRiTEN-32C46354.ip-176-31-113.eu PRIVMSG #0DAY-MP3S :#32     5x [ 67M] [Electronic]_Harleighblu_X_Starkiller-Amorine-(ADVANCE)-2016-SO.tar
+
+:[TranceBot]-[22]!djx0x@The.Trance.22 PRIVMSG #0DAY-MP3S :#168 11x [ 41M] 05,04Red.Hot.Chili.Peppers-Snow.(Hey.Oh)-EP-WEB-2006-ENTiTLED.tar
+
+:Oday-YEA7!root@CRiTEN-2B38C622.ip-5-39-76.eu PRIVMSG #0DAY-MP3S :#47  2x [162M] [Reggae]_VA-Riddim_Thief-Bootleg-TAPE-1996-NOiR.tar
+
+:Oday-YEA2!root@CRiTEN-2C969E14.ip-37-59-62.eu PRIVMSG #0DAY-MP3S :#31    7x [ 91M] [HipHop]_Supastition-7_Years_Of_Bad_Luck-2002-GCP_INT.tar
+
+:Oday-YEA5!iroffer@CRiTEN-19E8E1F9.dynamic.kabel-deutschland.de PRIVMSG #0DAY-MP3S :#56   2x [132M] [Trance]_Aly_and_Fila-Beyond_The_Lights-CD-2017-D2H.tar
+
+:Oday-YEA3!root@CRiTEN-3EBB230.rev.poneytelecom.eu PRIVMSG #0DAY-MP3S :#31   8x [102M] [HipHop]_Blakcmass-Blakcmass_Cometh-2017-FrB.tar
+
+:[FutureBot]-[25]!blow@The.Batcave.25 PRIVMSG #0DAY-MP3S :#20   3x [ 60M] 01,02[Rock]_Ladroes_Do_Tempo_-_1_Assalto-2015-FKK.tar
+
+:[TranceBoT]-[21]!DjTiesto@The.Batcave.21 PRIVMSG #0DAY-MP3S :#45 1x [ 60M] 09,01Moti.Brothers-Get.Down-(SRMR148)-WEB-2016-CBR.INT.tar
+
+:[TranceBot]-[39]!cave@CRiTEN-86D9853A.ip-37-187-115.eu PRIVMSG #0DAY-MP3S :#22    2x [703M] 09,01Sun.Kil.Moon-Common.As.Light.And.Love.Are.Red.Valleys.of.Blood-2CD-FLAC-2017-FORSAKEN.tar
+
+:Oday-YEA6!root@CRiTEN-B575E3C0.ip-37-59-39.eu PRIVMSG #0DAY-MP3S :#62  6x [ 80M] [BlackMetal]_Krallice-Go_Be_Forgotten-2017-r35.tar
+
+:[TranceBot]-[22]!djx0x@The.Trance.22 PRIVMSG #0DAY-MP3S :#169  9x [ 18M] 05,04Red.Hot.Chili.Peppers-Strange.Man.Long.Progression-SINGLE-WEB-2012-ENTiTLED.tar
+
+:[TranceBot]-[20]!Trance@The.Batcave.20 PRIVMSG #0DAY-MP3S :#23  4x [264M] 01,05VA-Sons.Of.Saturn.Compiled.By.Bolon.Yokte.And.Inspace-(POVUH059)-WEB-2017-iHR.tar
+
+:Oday-YEA5!iroffer@CRiTEN-19E8E1F9.dynamic.kabel-deutschland.de PRIVMSG #0DAY-MP3S :#57   4x [230M] [Pop]_David_Gray-The_Best_of_David_Gray-(Deluxe_Edition)-2CD-2016-MTD.tar
+
+:Oday-YEA2!root@CRiTEN-2C969E14.ip-37-59-62.eu PRIVMSG #0DAY-MP3S :#32   10x [102M] [Rock]_1476-Our_Season_Draws_Near-2017-RTB.tar
+
+:Oday-YEA7!root@CRiTEN-2B38C622.ip-5-39-76.eu PRIVMSG #0DAY-MP3S :#48  2x [ 62M] [Unknown]_Pegasus-Beatiful_Life-(Retail)-2017-KOPiE.tar
+
+:[FutureBot]-[13]!batcave@the.batve.13 PRIVMSG #0DAY-MP3S :#24   6x [ 81M] 04,01[HeavyMetal]_Highlow_-_Wolfrider-Wolf_Riding_High_and_Low-Split-2015-GRAVEWISH.tar
+
+:Oday-YEA3!root@CRiTEN-3EBB230.rev.poneytelecom.eu PRIVMSG #0DAY-MP3S :#32   5x [ 65M] [Funk]_C.J._and_Co.-Devils_Gun-LP-1977-GCP.tar
+
+:Oday-YEA0!root@CRiTEN-32C46354.ip-176-31-113.eu PRIVMSG #0DAY-MP3S :#33    19x [251M] [Country]_Dolly_Parton_Linda_Ronstadt_And_Emmylou_Harris-The_Complete_Trio_Collection-3CD-2016-404.tar
+
+:[FutureBot]-[25]!blow@The.Batcave.25 PRIVMSG #0DAY-MP3S :#21   2x [ 93M] 01,02[Rock]_Spoken-Breathe_Again-2015-MTD.tar
+
+:Oday-YEA6!root@CRiTEN-B575E3C0.ip-37-59-39.eu PRIVMSG #0DAY-MP3S :#63  4x [ 37M] [Rock]_Maple_Stave-EP_Three-EP-CDR-2008-r35.tar
+
+:[TranceBot]-[22]!djx0x@The.Trance.22 PRIVMSG #0DAY-MP3S :#170  9x [ 34M] 05,04Red.Hot.Chili.Peppers-Tell.Me.Baby-EP-WEB-2006-ENTiTLED.tar
+
