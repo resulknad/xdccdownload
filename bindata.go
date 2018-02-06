@@ -153,7 +153,7 @@ func distBuildJs() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "dist/build.js", size: 351261, mode: os.FileMode(420), modTime: time.Unix(1517938596, 0)}
+	info := bindataFileInfo{name: "dist/build.js", size: 351261, mode: os.FileMode(420), modTime: time.Unix(1517945965, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -173,7 +173,7 @@ func distBuildJsMap() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "dist/build.js.map", size: 2593426, mode: os.FileMode(420), modTime: time.Unix(1517938596, 0)}
+	info := bindataFileInfo{name: "dist/build.js.map", size: 2593426, mode: os.FileMode(420), modTime: time.Unix(1517945965, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -193,7 +193,7 @@ func distMainCss() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "dist/main.css", size: 151263, mode: os.FileMode(420), modTime: time.Unix(1517938596, 0)}
+	info := bindataFileInfo{name: "dist/main.css", size: 151263, mode: os.FileMode(420), modTime: time.Unix(1517945965, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -213,7 +213,7 @@ func distMainCssMap() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "dist/main.css.map", size: 85, mode: os.FileMode(420), modTime: time.Unix(1517938596, 0)}
+	info := bindataFileInfo{name: "dist/main.css.map", size: 85, mode: os.FileMode(420), modTime: time.Unix(1517945965, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }

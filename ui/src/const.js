@@ -1,2 +1,2 @@
 
-export default { baseURL: '/'}
+export default { baseURL: ''}
