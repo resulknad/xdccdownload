@@ -1,22 +1,23 @@
 package main
 import "time"
 import "fmt"
-import "os"
-import "bufio"
 import "strings"
 import "regexp"
-import "github.com/HouzuoGuo/tiedot/db"
-//import "github.com/HouzuoGuo/tiedot/dberr"
-import "github.com/fatih/structs"
-import "encoding/json"
-
+import "os"
+import "path"
+import (
+     "github.com/jinzhu/gorm"
+     _"github.com/jinzhu/gorm/dialects/sqlite"
+)
 
 
 type Indexer struct {
-    Packages *db.Col
+    Conf *Config
+    db *gorm.DB
 }
 
 type Package struct {
+    gorm.Model
     Server string
     Channel string
     Bot string
@@ -28,130 +29,98 @@ type Package struct {
 }
 
 func (i *Indexer) AddPackage(p Package) {
-    if i.RemoveIfExists(p) {
-    i.Packages.Insert(structs.Map(p))
-}
+    i.db.Create(&p)
 }
 
 func (i *Indexer) RemoveIfExists(p Package) bool {
-    var query interface{}
-    json.Unmarshal([]byte(fmt.Sprintf(`{"n":[{"eq": "%s", "in": ["Server"]}, {"eq": "%s", "in": ["Bot"]}, {"eq": "%s", "in": ["Package"]}, {"eq": "%s", "in": ["Channel"]}]}`, p.Server, p.Bot, p.Package, p.Channel)), &query)
+    var pDb Package
+    i.db.Where("Server = ? AND Bot=? AND Package=? AND Channel=?", p.Server, p.Bot, p.Package, p.Channel).First(&pDb)
+    i.db.Delete(&pDb)
 
-	queryResult := make(map[int]struct{}) // query result (document IDs) goes into map keys
-	if err := db.EvalQuery(query, i.Packages, &queryResult); err != nil {
-        panic(err)
-    }
-    for id := range queryResult {
-        i.Packages.Update(id, structs.Map(p))
-//        i.Packages.Delete(id)
-        fmt.Println("Deleted, bc was already in database ",id)
-        return false
-    }
     return true
 }
 
-func (i *Indexer) Search(name string) {
+func (i *Indexer) GetPackage(id int) (bool, Package) {
+    var pack Package
+    i.db.First(&pack, id)
+    return true, pack
+}
 
-	i.Packages.ForEachDoc(func(id int, docContent []byte) (willMoveOn bool) {
-        var pkg Package
-        json.Unmarshal(docContent, &pkg)
-        if (strings.Contains(strings.ToLower(pkg.Filename), name)) {
-            fmt.Println("Document", id, "is", string(docContent))
-        }
-        return true  // move on to the next document OR
-    })
+func (i *Indexer) Search(name string) []Package {
+    i.db.Where("updated_at < date('now', '-1 day')").Delete(Package{}) // cleanup
+    fmt.Println(name)
+    var users []Package
+    cnt := 0
+    i.db.Where("Filename LIKE ?", name).Find(&users)
+    for _, el := range users {
+        fmt.Println(el)
+        cnt++
+    }
+    return users
+
 }
 
 func (i *Indexer) PrintAll() {
     // Process all documents (note that document order is undetermined)
     cnt := 0
-	i.Packages.ForEachDoc(func(id int, docContent []byte) (willMoveOn bool) {
-        fmt.Println("Document", id, "is", string(docContent))
+    var users []Package
+    i.db.Find(&users)
+    for _, el := range users {
+        fmt.Println(el)
         cnt++
-        return true  // move on to the next document OR
-    })
+    }
     fmt.Println(cnt)
 }
 
 func (i *Indexer) SetupDB() {
-    dbDir := "./database/"
-    myDB, err := db.OpenDB(dbDir)
-    if err != nil {
-        panic(err)
-    }
-
-    if err := myDB.Create("Packages"); err != nil {
-        fmt.Println(err)
-    }
-    if err := myDB.Scrub("Packages"); err != nil {
-		panic(err)
-    }
-
-    i.Packages = myDB.Use("Packages")
-	if err := i.Packages.Index([]string{"Server"}); err != nil {
-		fmt.Println(err)
-    }
-	if err := i.Packages.Index([]string{"Bot"}); err != nil {
-		fmt.Println(err)
-    }
-	if err := i.Packages.Index([]string{"Package"}); err != nil {
-		fmt.Println(err)
-    }
-	if err := i.Packages.Index([]string{"Channel"}); err != nil {
-		fmt.Println(err)
-    }
+  p := path.Join(os.Getenv("HOME"), ".indexer.db")
+  db, err := gorm.Open("sqlite3", p)
+  if err != nil {
+    panic("failed to connect database")
+  }
+  i.db = db
+  db.AutoMigrate(&Package{})
 }
 
 func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
     listingRegexp := regexp.MustCompile(`(#[0-9]*)[^0-9]*([0-9]*x)[^\[]*\[([ 0-9.]+(?:M|G)?)\][^\x21-\x7E]*(.*)`)
     for {
         select {
-        case msg := <-ch:
-            if listingRegexp.MatchString(msg.Content) {
-                matches := listingRegexp.FindStringSubmatch(msg.Content)
-                nmb, gets, size, name := matches[1], matches[2], strings.Trim(matches[3]," \r\n\u000f"), strings.Trim(matches[4], " \r\n\u000f")
-                indx.AddPackage(Package{Server: msg.Server, Channel: msg.Channel, Bot: msg.From, Package: nmb, Filename: name, Size: size, Gets: gets, Time: time.Now().Format(time.RFC850)})
+            case msg := <-ch:
+                if listingRegexp.MatchString(msg.Content) {
+                    matches := listingRegexp.FindStringSubmatch(msg.Content)
+                    nmb, gets, size, name := matches[1], matches[2], strings.Trim(matches[3]," \r\n\u000f"), strings.Trim(matches[4], " \r\n\u000f")
+                    indx.AddPackage(Package{Server: msg.Server, Channel: msg.Channel, Bot: msg.From, Package: nmb, Filename: name, Size: size, Gets: gets, Time: time.Now().Format(time.RFC850)})
 
-            }
-        default: // wait for multiple messages before inserting
-        fmt.Println("sleep")
-            time.Sleep(10*time.Second)
+                }
+            default: // wait for multiple messages before inserting
+            fmt.Println("sleep")
+                time.Sleep(10*time.Second)
+        }
     }
 }
-}
 
-func CreateIndexer() *Indexer {
-    f, _ := os.Open("channels.txt")
-    scanner := bufio.NewScanner(f)
+func CreateIndexer(c *Config) *Indexer {
 
-    indx := Indexer{}
+    indx := Indexer{Conf: c}
     indx.SetupDB()
-    indx.PrintAll()
-    indx.Search("j._cole")
-    time.Sleep(10 * time.Second)
 
     ch := make(chan PrivMsg, 100)
-    for scanner.Scan() {
-        line := strings.Split(scanner.Text(), " ")
-        if len(line) != 2 {
-            fmt.Println("coulnd parse line...")
-            continue;
-        }
-
-        i := IRC{Server: line[1]}
+    for _,el := range c.Channels {
+        i := IRC{Server: el.Server}
         suc := false
-        for a:= 0; a<5&&!suc; a++ {
-            suc = i.Connect() && i.JoinChannel(line[0]) 
+        for a:= 0; a<3&&!suc; a++ {
+            suc = i.Connect() && i.JoinChannel(el.Channel)
             time.Sleep(time.Duration(0*a)*time.Second)
         }
+
         if !suc {
-            fmt.Println("Coulndt connect to ", line[0], line[1])
+            fmt.Println("Coulndt connect to ", el.Server, el.Channel)
         }
 
-
-        i.SubscriptionCh<-PrivMsgSubscription{Once:false, Backchannel: ch, To:line[0]}
-
+        i.SubscriptionCh<-PrivMsgSubscription{Once:false, Backchannel: ch, To:el.Channel}
     }
+
     go indx.WaitForPackages(ch)
 
     return &indx

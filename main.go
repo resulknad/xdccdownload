@@ -2,40 +2,35 @@ package main
 import "time"
 import "fmt"
 import "os"
-import "github.com/urfave/cli"
+import "path"
+import "github.com/gin-gonic/gin"
+import "github.com/gin-contrib/cors"
 
 func main() {
-    app := cli.NewApp()
-      app.Commands = []cli.Command{
-    {
-      Name:    "complete",
-      Aliases: []string{"c"},
-      Usage:   "complete a task on the list",
-      Action:  func(c *cli.Context) error {
-        return nil
-      },
-    },
-    {
-      Name:    "add",
-      Aliases: []string{"a"},
-      Usage:   "add a task to the list",
-      Action:  func(c *cli.Context) error {
-        return nil
-      },
-    },
-  }
-  app.Run(os.Args)
-    CreateIndexer()
+    c := Config{}
+    c.LoadConfig()
+    indx := CreateIndexer(&c)
+    ie := IndexerEndpoints{indx}
+    dm := DownloadManagerRestAPI{*CreateDownloadManager(indx, &c)}
+    router := gin.Default()
+    router.Use(cors.Default())
+
+    // determine ui path
+    execPath, err := os.Executable()
+    if (err != nil) { panic(err) }
+    uiPath := path.Join(execPath, "ui")
+    fmt.Println(uiPath)
+    StaticServe(router)
+    //router.Use(static.Serve("/", static.LocalFile(uiPath, false)))
+    router.GET("/config/", func (g *gin.Context) { g.JSON(200, c) })
+    router.GET("/packages/:query", ie.pkgQuery)
+    router.GET("/download/", dm.ListAll)
+    router.DELETE("/download/:id", dm.Delete)
+    router.POST("/download/", dm.Create)
+    router.PUT("/download/:id", dm.Update)
+
+    router.Run(":8080")
     for {
         time.Sleep(10*time.Second)
     }
-    time.Sleep(40*time.Second)
-    fmt.Println("Usage: [SERVER]:[PORT] [CHANNEL] [BOT] [PACKAGE]")
-    fmt.Println(os.Args)
-    i := IRC{Server: os.Args[1], Nick: "asdfasaf213d"}
-    i.Connect()
-    fmt.Println(os.Args)
-    x := XDCC{Bot: os.Args[3], Channel: os.Args[2], Package: os.Args[4], IRCConn: &i}
-    x.Download()
-    fmt.Print(x)
 }

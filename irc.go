@@ -8,6 +8,7 @@ import "strings"
 import "container/list"
 import "regexp"
 import "github.com/elgs/gostrgen"
+import "os"
 
 //import "io"
 
@@ -52,11 +53,10 @@ type PrivMsg struct {
 }
 
 func (f PrivMsgSubscription) Evaluate(msg string, i *IRC) bool {
-    receiverRegexp := regexp.MustCompile(`:([^@]*)@`)
+    receiverRegexp := regexp.MustCompile(`:([^!]*)!`)
     privmsgRegexp := regexp.MustCompile(`PRIVMSG ([^ ]+) :(.*)`)
     if (privmsgRegexp.MatchString(msg) &&
         strings.Contains(privmsgRegexp.FindStringSubmatch(msg)[1], f.To)) {
-            fmt.Println(i.Channel)
             //fmt.Println("rule struck: %s, msg: %s, channel:%s", f.To, msg, i.Channel)
         f.Backchannel <- PrivMsg{Content: privmsgRegexp.FindStringSubmatch(msg)[2], From: receiverRegexp.FindStringSubmatch(msg)[1], Server: i.Server, Channel: i.Channel}
         return true
@@ -167,7 +167,16 @@ func (i *IRC) ConnHandler() {
     reader := bufio.NewReader(i.conn)
     go func(ch chan string) {
         for {
+
+
+
             msg, _ := reader.ReadString('\n')
+            f, err := os.OpenFile("/tmp/" + i.Nick + ".log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+            if err!=nil {
+                panic(err)
+            }
+            f.WriteString(msg + "\n")
+            f.Close()
             ch <- msg
         }
     }(readCh)

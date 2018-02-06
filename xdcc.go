@@ -28,9 +28,14 @@ func (i *XDCC) awaitFeedbackAfterRequest(ch chan PrivMsg) (string, bool) {
 	}
 }
 
-func (i *XDCC) Download() bool {
-	i.IRCConn.JoinChannel(i.Channel)
+func (i *XDCC) Download(prog chan float32, filenameChan chan string, tempdir string) bool {
+	if (!i.IRCConn.JoinChannel(i.Channel)) {
+        fmt.Println("Joining channel failed")
+        prog<- -1.
+        return false
+    }
 	awaitFeedback := make(chan PrivMsg)
+    fmt.Println("Nick: %s", i.IRCConn.Nick)
 	i.IRCConn.SubscriptionCh <- PrivMsgSubscription{To: i.IRCConn.Nick, Backchannel: awaitFeedback, Once: true}
 
 	var feedback string
@@ -47,6 +52,7 @@ func (i *XDCC) Download() bool {
 
 	if (recv == false) || (!r.MatchString(feedback)) {
 		fmt.Println("no feedback from bot. or not dcc send")
+        prog<- -1.
 		i.IRCConn.Quit()
 		return false
 	}
@@ -66,6 +72,7 @@ func (i *XDCC) Download() bool {
 	fmt.Println("connected")
 	if err != nil {
 		fmt.Println(err)
+        prog <- -1.;
 		return false
 	}
 	var recvBytes int
@@ -73,7 +80,8 @@ func (i *XDCC) Download() bool {
 	recvBytes = 0
     recvBytesSinceLastAck = 0
 	recvBuf := make([]byte, 4096)
-	f, err := os.Create(path.Join("/home/dan/Downloads/", url.PathEscape(filename)))
+    pathToFile := path.Join(tempdir, url.PathEscape(filename))
+	f, err := os.Create(pathToFile)
 	defer f.Close()
 G:
 	for {
@@ -98,7 +106,8 @@ G:
 
 		//io.CopyN(f, recvBuf, uint64(n))
 
-		fmt.Println(recvBytes, " / ", size)
+		//fmt.Println(recvBytes, " / ", size)
+        prog<-float32(recvBytes)/float32(sizeI)
 		if recvBytes == sizeI {
 			fmt.Println("Received file.")
 			break G
@@ -106,7 +115,7 @@ G:
 	}
     f.Sync()
 	f.Close()
-
+    filenameChan <- pathToFile
 	return  recvBytes == sizeI
 }
 
