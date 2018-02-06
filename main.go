@@ -29,7 +29,7 @@ func main() {
     router.POST("/download/", dm.Create)
     router.PUT("/download/:id", dm.Update)
 
-    router.Run(":8080")
+    router.Run(":" + string(c.Port))
     for {
         time.Sleep(10*time.Second)
     }

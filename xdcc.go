@@ -92,7 +92,7 @@ G:
 			} else {
 				fmt.Println("read error:", err2, n)
 			}
-            if recvBytes != sizeI && recvBytes <= (1<<32 - 1) {
+            if recvBytes != sizeI && recvBytes <= (1<<31 - 1) {
                 bs := make([]byte, 4)
                 binary.BigEndian.PutUint32(bs, uint32(recvBytesSinceLastAck))
                 conn.Write(bs)

@@ -14,6 +14,7 @@ type ChannelConfig struct {
 }
 
 type ConfigStruct struct {
+    Port string
     TempPath string
     TargetPath string
     Channels []ChannelConfig
