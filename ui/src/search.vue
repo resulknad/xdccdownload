@@ -59,14 +59,14 @@ watch: {
             this.downloadId = id
         },
         loadData() {
-            axios.get(consts.baseURL + `/packages/` + encodeURIComponent(this.$route.query.search))
+            axios.get(consts.baseURL + `packages/` + encodeURIComponent(this.$route.query.search))
             .then(response => {
               this.pckgs = response.data
             })
             .catch(e => {
                 console.log(e);
             });
-            axios.get(consts.baseURL +  `/config/`)
+            axios.get(consts.baseURL +  `config/`)
             .then(response => {
               this.configBaseDir = response.data.TargetPath
             })

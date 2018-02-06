@@ -37,7 +37,7 @@ export default {
             })
         },
         loadData: function() {
-    axios.get(consts.baseURL + `/download/`)
+    axios.get(consts.baseURL + `download/`)
     .then(response => {
       this.pckgs = response.data
     })
