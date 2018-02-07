@@ -13,7 +13,10 @@ func main() {
     ie := IndexerEndpoints{indx}
     dm := DownloadManagerRestAPI{*CreateDownloadManager(indx, &c)}
     router := gin.Default()
-    router.Use(cors.Default())
+    config := cors.DefaultConfig()
+    config.AllowAllOrigins = true
+    config.AddAllowMethods("DELETE")
+    router.Use(cors.New(config))
 
     // determine ui path
     execPath, err := os.Executable()

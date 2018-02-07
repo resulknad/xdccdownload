@@ -1,9 +1,10 @@
 <template>
     <div>
-          <b-table hover :items="pckgs" :fields="fields">
+        <b-pagination :total-rows="pckgs.length" per-page="50" v-model="currentPage" class="my-0" />
+          <b-table hover :items="pckgs" :fields="fields"              :current-page="currentPage"
+             per-page="50">
           <template slot="actions" slot-scope="cell">
               <b-btn @click="showModal(cell.item.ID)">Download</b-btn>
-              <b-btn size="sm" @click.stop="download(cell.item,cell.index,$event.target)">Download</b-btn>
             </template></b-table>
               <b-modal @ok="download()" v-model="modalShow" title="Path">
                   {{configBaseDir}}
@@ -40,7 +41,8 @@ export default {
         }, "actions"],
         modalShow: false,
         configBaseDir: '',
-        downloadId: -1
+        downloadId: -1,
+        currentPage: 0
     }
   },
 
@@ -75,7 +77,7 @@ watch: {
             })
         },
         download() {
-            axios.post(consts.baseURL + `/download/`, {targetfolder: this.targetFolder, packid: this.downloadId})
+            axios.post(consts.baseURL + `download/`, {targetfolder: this.targetFolder, packid: this.downloadId})
             .then(response => {
                 console.log(response)
             })

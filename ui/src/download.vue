@@ -27,7 +27,7 @@ export default {
   },
     methods: { 
         cancel(it) {
-            axios.delete(consts.baseURL + `/download/` + it.Pack.ID)
+            axios.delete(consts.baseURL + `download/` + it.Pack.ID)
             .then(response => {
                 console.log(response)
             })

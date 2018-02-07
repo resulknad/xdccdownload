@@ -52,6 +52,7 @@ func (i *XDCC) Download(prog chan float32, filenameChan chan string, tempdir str
 
 	if (recv == false) || (!r.MatchString(feedback)) {
 		fmt.Println("no feedback from bot. or not dcc send")
+		i.IRCConn.CommandCh <- fmt.Sprintf("PRIVMSG %s :xdcc remove", i.Bot) // we might be on some queue...
         prog<- -1.
 		i.IRCConn.Quit()
 		return false
@@ -67,7 +68,9 @@ func (i *XDCC) Download(prog chan float32, filenameChan chan string, tempdir str
 	fmt.Println(a)
 	ipstr := fmt.Sprintf("%d.%d.%d.%d", byte(a>>24), byte(a>>16), byte(a>>8), byte(a))
 
-	sizeI, _ := strconv.Atoi(size)
+    var sizeI int64
+	sizeI, _ = strconv.ParseInt(size, 10, 64)
+
 	conn, err := net.Dial("tcp", ipstr+":"+port)
 	fmt.Println("connected")
 	if err != nil {
@@ -75,8 +78,8 @@ func (i *XDCC) Download(prog chan float32, filenameChan chan string, tempdir str
         prog <- -1.;
 		return false
 	}
-	var recvBytes int
-    var recvBytesSinceLastAck int
+	var recvBytes int64
+    var recvBytesSinceLastAck int64
 	recvBytes = 0
     recvBytesSinceLastAck = 0
 	recvBuf := make([]byte, 4096)
@@ -87,28 +90,32 @@ G:
 	for {
 		n, err2 := conn.Read(recvBuf[:]) // recv data
 		if err2 != nil {
+            // we will try to recover from those like below
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				fmt.Println("read timeout:", netErr, n)
 			} else {
 				fmt.Println("read error:", err2, n)
 			}
-            if recvBytes != sizeI && recvBytes <= (1<<31 - 1) {
+
+            // as implemented in HexChat
+            if recvBytesSinceLastAck != 0 && recvBytes != sizeI && recvBytes <= (1<<31 - 1) {
                 bs := make([]byte, 4)
                 binary.BigEndian.PutUint32(bs, uint32(recvBytesSinceLastAck))
+                recvBytesSinceLastAck = 0
                 conn.Write(bs)
-            } else {
+            } else { // will only enter the above case once, second time we break
                 break G
             }
 		}
-		recvBytes = recvBytes + n
-        recvBytesSinceLastAck += n
+		recvBytes = recvBytes + int64(n)
+        recvBytesSinceLastAck += int64(n)
 		f.Write(recvBuf[:n])
 
 		//io.CopyN(f, recvBuf, uint64(n))
 
 		//fmt.Println(recvBytes, " / ", size)
         prog<-float32(recvBytes)/float32(sizeI)
-		if recvBytes == sizeI {
+		if recvBytes == (sizeI) {
 			fmt.Println("Received file.")
 			break G
 		}
@@ -116,6 +123,6 @@ G:
     f.Sync()
 	f.Close()
     filenameChan <- pathToFile
-	return  recvBytes == sizeI
+	return  (recvBytes) == (sizeI)
 }
 

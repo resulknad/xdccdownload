@@ -8,7 +8,7 @@ import "strings"
 import "container/list"
 import "regexp"
 import "github.com/elgs/gostrgen"
-import "os"
+//import "os"
 
 //import "io"
 
@@ -171,12 +171,12 @@ func (i *IRC) ConnHandler() {
 
 
             msg, _ := reader.ReadString('\n')
-            f, err := os.OpenFile("/tmp/" + i.Nick + ".log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-            if err!=nil {
-                panic(err)
-            }
-            f.WriteString(msg + "\n")
-            f.Close()
+      //      f, err := os.OpenFile("/tmp/" + i.Nick + ".log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+      //      if err!=nil {
+      //          panic(err)
+      //      }
+      //      f.WriteString(msg + "\n")
+      //      f.Close()
             ch <- msg
         }
     }(readCh)
@@ -185,6 +185,7 @@ func (i *IRC) ConnHandler() {
         select {
         case <-i.quit:
             fmt.Println("quit")
+            i.conn.Close()
             return
         case cmd := <-i.CommandCh:
             fmt.Fprintf(i.conn, cmd + "\r\n")

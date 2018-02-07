@@ -29,13 +29,16 @@ type Package struct {
 }
 
 func (i *Indexer) AddPackage(p Package) {
+    i.RemoveIfExists(p)
     i.db.Create(&p)
 }
 
 func (i *Indexer) RemoveIfExists(p Package) bool {
     var pDb Package
-    i.db.Where("Server = ? AND Bot=? AND Package=? AND Channel=?", p.Server, p.Bot, p.Package, p.Channel).First(&pDb)
-    i.db.Delete(&pDb)
+    i.db.Unscoped().Where("Server = ? AND Bot=? AND Package=? AND Channel=?", p.Server, p.Bot, p.Package, p.Channel).First(&pDb)
+    if pDb.ID > 0 { // gorms wants this
+        i.db.Unscoped().Delete(&pDb)
+    }
 
     return true
 }
@@ -47,7 +50,7 @@ func (i *Indexer) GetPackage(id int) (bool, Package) {
 }
 
 func (i *Indexer) Search(name string) []Package {
-    i.db.Where("updated_at < date('now', '-1 day')").Delete(Package{}) // cleanup
+    i.db.Unscoped().Delete(Package{}, "updated_at < date('now', '-1 day')") // cleanup
     fmt.Println(name)
     var users []Package
     cnt := 0
@@ -61,7 +64,6 @@ func (i *Indexer) Search(name string) []Package {
 }
 
 func (i *Indexer) PrintAll() {
-    // Process all documents (note that document order is undetermined)
     cnt := 0
     var users []Package
     i.db.Find(&users)
@@ -93,9 +95,6 @@ func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
                     indx.AddPackage(Package{Server: msg.Server, Channel: msg.Channel, Bot: msg.From, Package: nmb, Filename: name, Size: size, Gets: gets, Time: time.Now().Format(time.RFC850)})
 
                 }
-            default: // wait for multiple messages before inserting
-            fmt.Println("sleep")
-                time.Sleep(10*time.Second)
         }
     }
 }
