@@ -18,10 +18,10 @@ type Indexer struct {
 
 type Package struct {
     gorm.Model
-    Server string
-    Channel string
-    Bot string
-    Package string
+    Server string `gorm:"index:pckg"`
+    Channel string `gorm:"index:pckg"`
+    Bot string `gorm:"index:pckg"`
+    Package string `gorm:"index:pckg"`
     Filename string
     Size string
     Gets string
@@ -29,18 +29,21 @@ type Package struct {
 }
 
 func (i *Indexer) AddPackage(p Package) {
-    i.RemoveIfExists(p)
-    i.db.Create(&p)
+    if !i.UpdateIfExists(p) {
+        i.db.Create(&p)
+    }
 }
 
-func (i *Indexer) RemoveIfExists(p Package) bool {
+func (i *Indexer) UpdateIfExists(p Package) bool {
     var pDb Package
-    i.db.Unscoped().Where("Server = ? AND Bot=? AND Package=? AND Channel=?", p.Server, p.Bot, p.Package, p.Channel).First(&pDb)
-    if pDb.ID > 0 { // gorms wants this
-        i.db.Unscoped().Delete(&pDb)
+    i.db.Where("Server = ? AND Bot=? AND Package=? AND Channel=?", p.Server, p.Bot, p.Package, p.Channel).First(&pDb)
+    if pDb.ID > 0  { // gorms wants this
+        if pDb.Filename != p.Filename {
+            i.db.Model(&pDb).Updates(Package{Filename: p.Filename, Size: p.Size, Gets: p.Gets, Time: time.Now().Format(time.RFC850)})
+        }
+        return true
     }
-
-    return true
+    return false
 }
 
 func (i *Indexer) GetPackage(id int) (bool, Package) {
