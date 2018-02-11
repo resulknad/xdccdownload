@@ -7,11 +7,12 @@ import "github.com/gin-gonic/gin"
 import "github.com/gin-contrib/cors"
 
 func main() {
+    connPool := ConnectionPool{}
     c := Config{}
     c.LoadConfig()
-    indx := CreateIndexer(&c)
+    indx := CreateIndexer(&c, &connPool)
     ie := IndexerEndpoints{indx}
-    dm := DownloadManagerRestAPI{*CreateDownloadManager(indx, &c)}
+    dm := DownloadManagerRestAPI{*CreateDownloadManager(indx, &c, &connPool)}
     router := gin.Default()
     config := cors.DefaultConfig()
     config.AllowAllOrigins = true

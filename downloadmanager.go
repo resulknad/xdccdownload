@@ -9,11 +9,12 @@ type Download struct {
     Targetfolder string
     Pack Package
     Percentage float32
+    Messages string
 }
 
-func CreateDownloadManager(i *Indexer, c *Config) *DownloadManager{
+func CreateDownloadManager(i *Indexer, c *Config, connPool *ConnectionPool) *DownloadManager{
     q := make(chan bool)
-    return &DownloadManager{Indx:i, quit: q, lock: sync.Mutex{}, Conf: c}
+    return &DownloadManager{Indx:i, quit: q, lock: sync.Mutex{}, Conf: c, connPool: connPool}
 }
 
 type DownloadManager struct {
@@ -21,6 +22,7 @@ type DownloadManager struct {
     Indx *Indexer
     Conf *Config
     lock sync.Mutex
+    connPool *ConnectionPool
     quit chan bool
 }
 
@@ -62,32 +64,41 @@ func (dm *DownloadManager) DeleteOne(id int) {
 
 func (dm *DownloadManager) DoDownload(d *Download) {
     p := (*d).Pack
-    i := IRC{Server: p.Server}
-    if i.Connect() == false {
+    i := dm.connPool.GetConnection(p.Server)
+    if i == nil {
         dm.lock.Lock()
         d.Percentage = -1
         dm.lock.Unlock()
         return
     }
-    ch := make(chan float32, 200)
-    filenameCh := make(chan string)
-    x := XDCC{Bot: p.Bot, Channel: p.Channel, Package: p.Package, IRCConn: &i}
-    go x.Download(ch, filenameCh, dm.Conf.TempPath)
-    for d.Percentage <1 {
+    ch := make(chan XDCCDownloadMessage, 200)
+    x := XDCC{Bot: p.Bot, Channel: p.Channel, Package: p.Package, IRCConn: i, Filename: p.Filename}
+    go x.Download(ch, dm.Conf.TempPath)
+    var filePath string
+    for filePath == "" {
         select {
-        case progress := <-ch:
+        case msg := <-ch:
             dm.lock.Lock()
-            d.Percentage = progress
+            if msg.Progress != 0 {
+                d.Percentage = msg.Progress
+            } else if msg.Message != "" {
+                d.Messages += msg.Message + "\n"
+            } else if msg.Filename != "" {
+                filePath = msg.Filename
+            } else if msg.Err != "" {
+                d.Messages += msg.Err + "\n"
+            }
             dm.lock.Unlock()
         }
     }
-    u := Unpack{dm.Conf.TempPath, path.Join(dm.Conf.TargetPath, d.Targetfolder), <-filenameCh}
+    u := Unpack{dm.Conf.TempPath, path.Join(dm.Conf.TargetPath, d.Targetfolder), filePath}
     u.Do()
-
 }
+
 func printSlice(s []*Download) {
 	fmt.Printf("len=%d cap=%d %v\n", len(s), cap(s), s)
 }
+
 func (dm *DownloadManager) CreateDownload(d Download) {
     dm.lock.Lock()
     defer dm.lock.Unlock()

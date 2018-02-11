@@ -8,17 +8,20 @@ import "strings"
 import "container/list"
 import "regexp"
 import "github.com/elgs/gostrgen"
+import "sync"
 //import "os"
 
 //import "io"
 
 type IRC struct {
+    sync.Mutex
     Server string
     Channel string
     Nick string
     conn net.Conn
     SubscriptionCh chan Subscription
     CommandCh chan string
+    channels []string
 
     quit chan bool // channel quits every running goroutine
 }
@@ -58,7 +61,7 @@ func (f PrivMsgSubscription) Evaluate(msg string, i *IRC) bool {
     if (privmsgRegexp.MatchString(msg) &&
         strings.Contains(privmsgRegexp.FindStringSubmatch(msg)[1], f.To)) {
             //fmt.Println("rule struck: %s, msg: %s, channel:%s", f.To, msg, i.Channel)
-        f.Backchannel <- PrivMsg{Content: privmsgRegexp.FindStringSubmatch(msg)[2], From: receiverRegexp.FindStringSubmatch(msg)[1], Server: i.Server, Channel: i.Channel}
+            f.Backchannel <- PrivMsg{Content: privmsgRegexp.FindStringSubmatch(msg)[2], From: receiverRegexp.FindStringSubmatch(msg)[1], Server: i.Server, Channel: i.Channel, To: privmsgRegexp.FindStringSubmatch(msg)[1]}
         return true
     }
     return false
@@ -146,6 +149,14 @@ func (i *IRC) Connect() bool {
     return true
 }
 func (i *IRC) JoinChannel(channel string) bool {
+    i.Lock()
+    defer i.Unlock()
+    for _,c := range(i.channels) {
+        if channel == c {
+            return true
+        }
+    }
+
     joinedAwait := make(chan string)
     i.SubscriptionCh<-GeneralSubscription{Filter: "JOIN", Backchannel:joinedAwait, Once:true}
     i.CommandCh<-"JOIN " + channel + "\r\n"
@@ -159,6 +170,7 @@ func (i *IRC) JoinChannel(channel string) bool {
     }
     i.Channel = channel
     fmt.Println("joined!!")
+    i.channels = append(i.channels, channel)
     return true
 }
 func (i *IRC) ConnHandler() {

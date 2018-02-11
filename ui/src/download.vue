@@ -3,7 +3,16 @@
           <b-table hover :items="pckgs" :fields="fields">
           <template slot="actions" slot-scope="cell">
               <b-btn size="sm" @click.stop="cancel(cell.item,cell.index,$event.target)">Stop</b-btn>
+            </template>          <template slot="actions" slot-scope="cell">
+              <b-btn @click="showModal(cell.item.Messages)">Info</b-btn>
             </template></b-table>
+              </b-table>
+              
+              <b-modal v-model="modalShow" title="Info">
+                  {{info}}
+                  <p class="my-4">{{downloadId}}</p>
+              </b-modal>
+
     </div>
 
 </template>
@@ -22,10 +31,16 @@ export default {
           key: 'Percentage',
           sortable: true
         }, "actions"],
-        intv: false
+        intv: false,
+        modalShow: false,
+        info: ""
     }
   },
     methods: { 
+        showModal(msgs) {
+            this.modalShow = true
+            this.info = msgs
+        },
         cancel(it) {
             axios.delete(consts.baseURL + `download/` + it.Pack.ID)
             .then(response => {

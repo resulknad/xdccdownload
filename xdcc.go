@@ -8,15 +8,23 @@ import "time"
 
 //import "strings"
 import "regexp"
-import "strconv"
 import "encoding/binary"
 import "os"
+import "strconv"
+
+type XDCCDownloadMessage struct {
+    Progress    float32
+    Message     string
+    Filename    string
+    Err         string
+}
 
 type XDCC struct {
 	IRCConn *IRC
 	Bot     string
 	Channel string
 	Package string
+    Filename string
 }
 
 func (i *XDCC) awaitFeedbackAfterRequest(ch chan PrivMsg) (string, bool) {
@@ -28,10 +36,41 @@ func (i *XDCC) awaitFeedbackAfterRequest(ch chan PrivMsg) (string, bool) {
 	}
 }
 
-func (i *XDCC) Download(prog chan float32, filenameChan chan string, tempdir string) bool {
+type SendReq struct {
+    Filename string
+    IP string
+    Port string
+    Size int64
+}
+
+func (i *XDCC) ParseSend(feedback string) *SendReq {
+	r := regexp.MustCompile(`DCC SEND ((?:"[^"]+")|(?:[^ ]+)) ([0-9]*) ([0-9]*) ([0-9]*)`)
+    if !r.MatchString(feedback) {
+        return nil
+    }
+	s := r.FindStringSubmatch(feedback)
+	filename, ip, port, size := s[1], s[2], s[3], s[4]
+	fmt.Printf("File: %s, ip: %s, port: %s, size: %s", filename, ip, port, size)
+	a, _ := strconv.Atoi(ip)
+	fmt.Println(a)
+	ipstr := fmt.Sprintf("%d.%d.%d.%d", byte(a>>24), byte(a>>16), byte(a>>8), byte(a))
+
+    var sizeI int64
+	sizeI, _ = strconv.ParseInt(size, 10, 64)
+    return &SendReq{Filename: filename, IP:ipstr, Port: port, Size: sizeI}
+}
+
+func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
+    OfferMatchesDesired := func (offer string) bool {
+        parsed := i.ParseSend(offer)
+        if parsed == nil {
+            return false
+        }
+        fmt.Println("got a dcc send")
+        return (parsed.Filename == i.Filename)
+    }
 	if (!i.IRCConn.JoinChannel(i.Channel)) {
-        fmt.Println("Joining channel failed")
-        prog<- -1.
+        prog<- XDCCDownloadMessage{Err: "Joining channel failed"}
         return false
     }
 	awaitFeedback := make(chan PrivMsg)
@@ -42,40 +81,33 @@ func (i *XDCC) Download(prog chan float32, filenameChan chan string, tempdir str
 	recv := false
 
 	feedback, recv = i.awaitFeedbackAfterRequest(awaitFeedback)
-	for a := 0; a < 3 && recv == false; a++ {
-        fmt.Println("trying...")
+    a := 0
+	for a = 0; a < 3 && !OfferMatchesDesired(feedback); a++ {
+        prog<- XDCCDownloadMessage{Message: "Try: " + strconv.Itoa(a)}
 		i.IRCConn.CommandCh <- fmt.Sprintf("PRIVMSG %s :xdcc send %s", i.Bot, i.Package)
 		feedback, recv = i.awaitFeedbackAfterRequest(awaitFeedback)
+        if recv {
+            prog<- XDCCDownloadMessage{Message: feedback}
+        }
+
 	}
 
-	r := regexp.MustCompile(`DCC SEND ((?:"[^"]+")|(?:[^ ]+)) ([0-9]*) ([0-9]*) ([0-9]*)`)
-
-	if (recv == false) || (!r.MatchString(feedback)) {
-		fmt.Println("no feedback from bot. or not dcc send")
+	if (a >=3) {
+        prog<- XDCCDownloadMessage{Err: "No dcc send from bot"}
 		i.IRCConn.CommandCh <- fmt.Sprintf("PRIVMSG %s :xdcc remove", i.Bot) // we might be on some queue...
-        prog<- -1.
-		i.IRCConn.Quit()
 		return false
 	}
 
 	fmt.Print("got feedback")
 	fmt.Print(feedback)
 
-	s := r.FindStringSubmatch(feedback)
-	filename, ip, port, size := s[1], s[2], s[3], s[4]
-	fmt.Printf("File: %s, ip: %s, port: %s, size: %s", filename, ip, port, size)
-	a, _ := strconv.Atoi(ip)
-	fmt.Println(a)
-	ipstr := fmt.Sprintf("%d.%d.%d.%d", byte(a>>24), byte(a>>16), byte(a>>8), byte(a))
 
-    var sizeI int64
-	sizeI, _ = strconv.ParseInt(size, 10, 64)
+    offer := i.ParseSend(feedback)
 
-	conn, err := net.Dial("tcp", ipstr+":"+port)
-	fmt.Println("connected")
+	conn, err := net.Dial("tcp", offer.IP+":"+offer.Port)
+
 	if err != nil {
-		fmt.Println(err)
-        prog <- -1.;
+        prog<- XDCCDownloadMessage{Err: string(err.Error())}
 		return false
 	}
 	var recvBytes int64
@@ -83,7 +115,7 @@ func (i *XDCC) Download(prog chan float32, filenameChan chan string, tempdir str
 	recvBytes = 0
     recvBytesSinceLastAck = 0
 	recvBuf := make([]byte, 4096)
-    pathToFile := path.Join(tempdir, url.PathEscape(filename))
+    pathToFile := path.Join(tempdir, url.PathEscape(offer.Filename))
 	f, err := os.Create(pathToFile)
 	defer f.Close()
 G:
@@ -98,7 +130,7 @@ G:
 			}
 
             // as implemented in HexChat
-            if recvBytesSinceLastAck != 0 && recvBytes != sizeI && recvBytes <= (1<<31 - 1) {
+            if recvBytesSinceLastAck != 0 && recvBytes != offer.Size && recvBytes <= (1<<31 - 1) {
                 bs := make([]byte, 4)
                 binary.BigEndian.PutUint32(bs, uint32(recvBytesSinceLastAck))
                 recvBytesSinceLastAck = 0
@@ -114,15 +146,15 @@ G:
 		//io.CopyN(f, recvBuf, uint64(n))
 
 		//fmt.Println(recvBytes, " / ", size)
-        prog<-float32(recvBytes)/float32(sizeI)
-		if recvBytes == (sizeI) {
+        prog<-XDCCDownloadMessage{Progress: float32(recvBytes)/float32(offer.Size)}
+		if recvBytes == (offer.Size) {
 			fmt.Println("Received file.")
 			break G
 		}
 	}
     f.Sync()
 	f.Close()
-    filenameChan <- pathToFile
-	return  (recvBytes) == (sizeI)
+    prog<-XDCCDownloadMessage{Filename: pathToFile}
+	return  (recvBytes) == (offer.Size)
 }
 

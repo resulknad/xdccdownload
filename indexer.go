@@ -14,6 +14,7 @@ import (
 type Indexer struct {
     Conf *Config
     db *gorm.DB
+    connPool *ConnectionPool
 }
 
 type Package struct {
@@ -95,24 +96,23 @@ func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
                 if listingRegexp.MatchString(msg.Content) {
                     matches := listingRegexp.FindStringSubmatch(msg.Content)
                     nmb, gets, size, name := matches[1], matches[2], strings.Trim(matches[3]," \r\n\u000f"), strings.Trim(matches[4], " \r\n\u000f")
-                    indx.AddPackage(Package{Server: msg.Server, Channel: msg.Channel, Bot: msg.From, Package: nmb, Filename: name, Size: size, Gets: gets, Time: time.Now().Format(time.RFC850)})
+                    indx.AddPackage(Package{Server: msg.Server, Channel: msg.To, Bot: msg.From, Package: nmb, Filename: name, Size: size, Gets: gets, Time: time.Now().Format(time.RFC850)})
 
                 }
         }
     }
 }
 
-func CreateIndexer(c *Config) *Indexer {
-
-    indx := Indexer{Conf: c}
+func CreateIndexer(c *Config, connPool *ConnectionPool) *Indexer {
+        indx := Indexer{Conf: c, connPool: connPool}
     indx.SetupDB()
 
     ch := make(chan PrivMsg, 100)
     for _,el := range c.Channels {
-        i := IRC{Server: el.Server}
+        i := connPool.GetConnection(el.Server)
         suc := false
         for a:= 0; a<3&&!suc; a++ {
-            suc = i.Connect() && i.JoinChannel(el.Channel)
+            suc = /*i.Connect() &&*/ i.JoinChannel(el.Channel)
             time.Sleep(time.Duration(0*a)*time.Second)
         }
 
