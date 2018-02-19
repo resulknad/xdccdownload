@@ -51,7 +51,7 @@ func (i *XDCC) ParseSend(feedback string) *SendReq {
 	s := r.FindStringSubmatch(feedback)
 	filename, ip, port, size := s[1], s[2], s[3], s[4]
 	fmt.Printf("File: %s, ip: %s, port: %s, size: %s", filename, ip, port, size)
-	a, _ := strconv.Atoi(ip)
+	a, _ := strconv.ParseInt(ip, 10, 64)
 	fmt.Println(a)
 	ipstr := fmt.Sprintf("%d.%d.%d.%d", byte(a>>24), byte(a>>16), byte(a>>8), byte(a))
 
