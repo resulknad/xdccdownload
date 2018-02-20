@@ -18,6 +18,8 @@ type ConfigStruct struct {
     TempPath string
     TargetPath string
     Channels []ChannelConfig
+	SpeedLimit int
+	ParallelDownloads int
 }
 
 type Config struct {

@@ -17,10 +17,12 @@ type XDCCDownloadMessage struct {
     Message     string
     Filename    string
     Err         string
+	Speed		int64
 }
 
 type XDCC struct {
 	IRCConn *IRC
+	Conf *Config
 	Bot     string
 	Channel string
 	Package string
@@ -82,7 +84,7 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 
 	feedback, recv = i.awaitFeedbackAfterRequest(awaitFeedback)
     a := 0
-	for a = 0; a < 3 && !OfferMatchesDesired(feedback); a++ {
+	for a = 0; a < 10 && !OfferMatchesDesired(feedback); a++ {
         prog<- XDCCDownloadMessage{Message: "Try: " + strconv.Itoa(a)}
 		i.IRCConn.CommandCh <- fmt.Sprintf("PRIVMSG %s :xdcc send %s", i.Bot, i.Package)
 		feedback, recv = i.awaitFeedbackAfterRequest(awaitFeedback)
@@ -92,7 +94,7 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 
 	}
 
-	if (a >=3) {
+	if (a >=10) {
         prog<- XDCCDownloadMessage{Err: "No dcc send from bot"}
 		i.IRCConn.CommandCh <- fmt.Sprintf("PRIVMSG %s :xdcc remove", i.Bot) // we might be on some queue...
 		return false
@@ -118,7 +120,9 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
     pathToFile := path.Join(tempdir, url.PathEscape(offer.Filename))
 	f, err := os.Create(pathToFile)
 	defer f.Close()
-G:
+	timeLastRecv := time.Now()
+	var samplingN int64
+	G:
 	for {
 		n, err2 := conn.Read(recvBuf[:]) // recv data
 		if err2 != nil {
@@ -139,18 +143,29 @@ G:
                 break G
             }
 		}
+		if (samplingN > int64(i.Conf.SpeedLimit)*int64(1024)) {
+			elapsed := time.Since(timeLastRecv)
+			if elapsed < time.Duration(time.Second) {
+				time.Sleep(time.Duration(time.Second)-elapsed)
+			}
+			elapsed = time.Since(timeLastRecv)
+			timeLastRecv = time.Now()
+			speed := int64(float64(samplingN)/elapsed.Seconds()/1024)
+			prog<-XDCCDownloadMessage{Speed: speed}
+			samplingN = 0
+		} else {
+			samplingN += int64(n)
+		}
 		recvBytes = recvBytes + int64(n)
         recvBytesSinceLastAck += int64(n)
 		f.Write(recvBuf[:n])
 
-		//io.CopyN(f, recvBuf, uint64(n))
-
-		//fmt.Println(recvBytes, " / ", size)
         prog<-XDCCDownloadMessage{Progress: float32(recvBytes)/float32(offer.Size)}
 		if recvBytes == (offer.Size) {
 			fmt.Println("Received file.")
 			break G
 		}
+
 	}
     f.Sync()
 	f.Close()

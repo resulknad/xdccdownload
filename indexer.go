@@ -90,11 +90,15 @@ func (i *Indexer) SetupDB() {
 
 func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
     listingRegexp := regexp.MustCompile(`(#[0-9]*)[^0-9]*([0-9]*x)[^\[]*\[([ 0-9.]+(?:M|G)?)\][^\x21-\x7E]*(.*)`)
+	colorRegexp := regexp.MustCompile(`\x03[0-9,]*([^\x03]*)\x03`)
     for {
         select {
             case msg := <-ch:
+				fmt.Println(msg)
                 if listingRegexp.MatchString(msg.Content) {
-                    matches := listingRegexp.FindStringSubmatch(msg.Content)
+
+
+                    matches := listingRegexp.FindStringSubmatch(colorRegexp.ReplaceAllString(msg.Content, "$1"))
                     nmb, gets, size, name := matches[1], matches[2], strings.Trim(matches[3]," \r\n\u000f"), strings.Trim(matches[4], " \r\n\u000f")
                     indx.AddPackage(Package{Server: msg.Server, Channel: msg.To, Bot: msg.From, Package: nmb, Filename: name, Size: size, Gets: gets, Time: time.Now().Format(time.RFC850)})
 
