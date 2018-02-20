@@ -70,6 +70,7 @@ func (dm *DownloadManager) DeleteOne(id int) {
 }
 
 func (dm *DownloadManager) DownloadWorker() {
+	F:
 	for {
 		select {
 		case d := <-dm.downloadCh:
@@ -79,7 +80,7 @@ func (dm *DownloadManager) DownloadWorker() {
 			dm.lock.Lock()
 			d.Percentage = -1
 			dm.lock.Unlock()
-			return
+			continue F
 		}
 		for dm.activeDls >= dm.Conf.ParallelDownloads {
 			time.Sleep(1*time.Second)
@@ -100,6 +101,7 @@ func (dm *DownloadManager) DownloadWorker() {
 					filePath = msg.Filename
 				} else if msg.Err != "" {
 					d.Messages += msg.Err + "\n"
+					continue F
 				} else if msg.Speed != 0 {
 					d.Speed = msg.Speed
 				}
