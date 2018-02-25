@@ -6,9 +6,7 @@ import "net"
 import "fmt"
 import "time"
 
-//import "strings"
 import "regexp"
-import "encoding/binary"
 import "os"
 import "strconv"
 
@@ -97,6 +95,7 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 	if (a >=10) {
         prog<- XDCCDownloadMessage{Err: "No dcc send from bot"}
 		i.IRCConn.CommandCh <- fmt.Sprintf("PRIVMSG %s :xdcc remove", i.Bot) // we might be on some queue...
+        	prog<- XDCCDownloadMessage{Err: "no dcc send"}
 		return false
 	}
 
@@ -104,7 +103,7 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 	fmt.Print(feedback)
 
 
-    offer := i.ParseSend(feedback)
+    	offer := i.ParseSend(feedback)
 
 	conn, err := net.Dial("tcp", offer.IP+":"+offer.Port)
 
@@ -124,24 +123,11 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 	var samplingN int64
 	G:
 	for {
+		conn.SetReadDeadline(time.Now().Add(5*time.Second))
 		n, err2 := conn.Read(recvBuf[:]) // recv data
 		if err2 != nil {
-            // we will try to recover from those like below
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				fmt.Println("read timeout:", netErr, n)
-			} else {
-				fmt.Println("read error:", err2, n)
-			}
-
-            // as implemented in HexChat
-            if recvBytesSinceLastAck != 0 && recvBytes != offer.Size && recvBytes <= (1<<31 - 1) {
-                bs := make([]byte, 4)
-                binary.BigEndian.PutUint32(bs, uint32(recvBytesSinceLastAck))
-                recvBytesSinceLastAck = 0
-                conn.Write(bs)
-            } else { // will only enter the above case once, second time we break
-                break G
-            }
+			prog<-XDCCDownloadMessage{Err: err2.Error()}
+			return false
 		}
 		if (samplingN > int64(i.Conf.SpeedLimit)*int64(1024)) {
 			elapsed := time.Since(timeLastRecv)
@@ -157,7 +143,7 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 			samplingN += int64(n)
 		}
 		recvBytes = recvBytes + int64(n)
-        recvBytesSinceLastAck += int64(n)
+		recvBytesSinceLastAck += int64(n)
 		f.Write(recvBuf[:n])
 
         prog<-XDCCDownloadMessage{Progress: float32(recvBytes)/float32(offer.Size)}

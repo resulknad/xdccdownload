@@ -73,6 +73,9 @@ func (dm *DownloadManager) DownloadWorker() {
 	for {
 		select {
 		case d := <-dm.downloadCh:
+			dm.lock.Lock()
+			d.Messages = "started"
+			dm.lock.Unlock()
 		p := (*d).Pack
 		i := dm.connPool.GetConnection(p.Server)
 		if i == nil {
@@ -97,6 +100,7 @@ func (dm *DownloadManager) DownloadWorker() {
 					filePath = msg.Filename
 				} else if msg.Err != "" {
 					d.Messages += msg.Err + "\n"
+					dm.lock.Unlock()
 					continue F
 				} else if msg.Speed != 0 {
 					d.Speed = msg.Speed
