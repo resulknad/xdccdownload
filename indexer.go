@@ -108,20 +108,23 @@ func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
 }
 
 func CreateIndexer(c *Config, connPool *ConnectionPool) *Indexer {
-        indx := Indexer{Conf: c, connPool: connPool}
+    indx := Indexer{Conf: c, connPool: connPool}
     indx.SetupDB()
 
     ch := make(chan PrivMsg, 100)
     for _,el := range c.Channels {
-        i := connPool.GetConnection(el.Server)
+       	    i := connPool.GetConnection(el.Server)
         suc := false
         for a:= 0; a<3&&!suc; a++ {
-            suc = /*i.Connect() &&*/ i.JoinChannel(el.Channel)
+
+            suc = /*i.Connect() &&*/ i!=nil && i.JoinChannel(el.Channel)
             time.Sleep(time.Duration(0*a)*time.Second)
+       	    i = connPool.GetConnection(el.Server)
         }
 
         if !suc {
             fmt.Println("Coulndt connect to ", el.Server, el.Channel)
+	    return nil
         }
 
         i.SubscriptionCh<-PrivMsgSubscription{Once:false, Backchannel: ch, To:el.Channel}

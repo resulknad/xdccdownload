@@ -2,7 +2,7 @@ package main
 import "fmt"
 import "sync"
 import "path"
-import "time"
+
 
 
 type Download struct {
@@ -28,7 +28,6 @@ type DownloadManager struct {
     Conf *Config
     lock sync.Mutex
     connPool *ConnectionPool
-	activeDls int
     quit chan bool
 	downloadCh chan *Download
 }
@@ -78,12 +77,9 @@ func (dm *DownloadManager) DownloadWorker() {
 		i := dm.connPool.GetConnection(p.Server)
 		if i == nil {
 			dm.lock.Lock()
-			d.Percentage = -1
+			d.Messages = "couldnt connect"
 			dm.lock.Unlock()
 			continue F
-		}
-		for dm.activeDls >= dm.Conf.ParallelDownloads {
-			time.Sleep(1*time.Second)
 		}
 		ch := make(chan XDCCDownloadMessage, 200)
 		x := XDCC{Bot: p.Bot, Channel: p.Channel, Package: p.Package, IRCConn: i, Filename: p.Filename, Conf: dm.Conf}
@@ -108,6 +104,7 @@ func (dm *DownloadManager) DownloadWorker() {
 				dm.lock.Unlock()
 			}
 		}
+		d.Messages += "Unpacking..."
 		u := Unpack{dm.Conf.TempPath, path.Join(dm.Conf.TargetPath, d.Targetfolder), filePath}
 		u.Do()
 	}
@@ -123,6 +120,5 @@ func (dm *DownloadManager) CreateDownload(d Download) {
     defer dm.lock.Unlock()
     d.Percentage = 0.0
     dm.List = append(dm.List, &d)
-	dm.downloadCh<-&d
-
+    dm.downloadCh<-&d
 }

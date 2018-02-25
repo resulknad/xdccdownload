@@ -1,8 +1,5 @@
 package main
 import "time"
-import "fmt"
-import "os"
-import "path"
 import "github.com/gin-gonic/gin"
 import "github.com/gin-contrib/cors"
 
@@ -10,7 +7,14 @@ func main() {
     connPool := ConnectionPool{}
     c := Config{}
     c.LoadConfig()
-    indx := CreateIndexer(&c, &connPool)
+
+    var indx *Indexer
+    for indx == nil {
+	    indx = CreateIndexer(&c, &connPool)
+	    time.Sleep(1*time.Second)
+    }
+
+    // configure rest api handlers
     ie := IndexerEndpoints{indx}
     dm := DownloadManagerRestAPI{*CreateDownloadManager(indx, &c, &connPool)}
     router := gin.Default()
@@ -19,13 +23,11 @@ func main() {
     config.AddAllowMethods("DELETE")
     router.Use(cors.New(config))
 
-    // determine ui path
-    execPath, err := os.Executable()
-    if (err != nil) { panic(err) }
-    uiPath := path.Join(execPath, "ui")
-    fmt.Println(uiPath)
+
+    // files embedded with bin data
     StaticServe(router)
-    //router.Use(static.Serve("/", static.LocalFile(uiPath, false)))
+
+    // specify endpoints
     router.GET("/config/", func (g *gin.Context) { g.JSON(200, c) })
     router.GET("/packages/:query", ie.pkgQuery)
     router.GET("/download/", dm.ListAll)
