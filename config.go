@@ -13,17 +13,32 @@ type ChannelConfig struct {
     Channel string
 }
 
+type TargetPath struct {
+	Type string
+	Dir string
+}
+
 type ConfigStruct struct {
     Port string
     TempPath string
-    TargetPath string
+    TargetPaths []TargetPath
     Channels []ChannelConfig
 	SpeedLimit int
 	ParallelDownloads int
+	LogDir string
 }
 
 type Config struct {
     ConfigStruct
+}
+
+func (c *Config) GetTargetDir(pType string) string {
+	for _,d := range(c.TargetPaths) {
+		if d.Type == pType {
+			return d.Dir
+		}
+	}
+	return c.TargetPaths[0].Dir
 }
 
 func (c *Config) SaveConfig() {

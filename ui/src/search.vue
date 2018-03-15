@@ -4,7 +4,7 @@
           <b-table hover :items="pckgs" :fields="fields"              :current-page="currentPage"
              per-page="50">
           <template slot="actions" slot-scope="cell">
-              <b-btn @click="showModal(cell.item.ID)">Download</b-btn>
+              <b-btn @click="showModal(cell.item)">Download</b-btn>
             </template></b-table>
               <b-modal @ok="download()" v-model="modalShow" title="Path">
                   {{configBaseDir}}
@@ -56,9 +56,16 @@ watch: {
 },
     
     methods: {
-        showModal(id) {
+        showModal(p) {
             this.modalShow =true
-            this.downloadId = id
+            this.downloadId = p.ID
+            this.configBaseDir = this.config.TargetPaths.filter(t => t.Type == p.Parsed.type)[0].Dir
+            if (p.Parsed.type == "tvshow") {
+                this.targetFolder = p.Parsed.title + "/" + "Season " + p.Parsed.season +"/"
+            } else {
+                this.targetFolder = p.Parsed.title + "/"
+
+            }
         },
         loadData() {
             axios.get(consts.baseURL + `packages/` + encodeURIComponent(this.$route.query.search))
@@ -70,7 +77,7 @@ watch: {
             });
             axios.get(consts.baseURL +  `config/`)
             .then(response => {
-              this.configBaseDir = response.data.TargetPath
+              this.config = response.data
             })
             .catch(e => {
                 console.log(e);

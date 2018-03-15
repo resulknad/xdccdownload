@@ -38,14 +38,16 @@ func (dm *DownloadManagerRestAPI) Create(c *gin.Context) {
 }
 
 func (dm *DownloadManagerRestAPI) Update(c *gin.Context) {
-    i := dm.GetParamOrThrow(c)
+    //i := dm.GetParamOrThrow(c)
+	i := c.Params.ByName("id")
     found, _ := dm.GetDownload(i)
     if found>-1 {
     }
 }
 
 func (dm *DownloadManagerRestAPI) Delete(c *gin.Context) {
-    i := dm.GetParamOrThrow(c)
+    //i := dm.GetParamOrThrow(c)
+	i := c.Params.ByName("id")
     dm.DeleteOne(i)
     dm.ListAll(c)
 }

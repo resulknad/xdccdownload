@@ -25,6 +25,7 @@ type XDCC struct {
 	Channel string
 	Package string
     Filename string
+	Quit	chan bool
 }
 
 func (i *XDCC) awaitFeedbackAfterRequest(ch chan PrivMsg) (string, bool) {
@@ -60,6 +61,16 @@ func (i *XDCC) ParseSend(feedback string) *SendReq {
     return &SendReq{Filename: filename, IP:ipstr, Port: port, Size: sizeI}
 }
 
+func (i *XDCC) quitSignalRecv(prog chan XDCCDownloadMessage) bool {
+	select {
+	case <-i.Quit:
+		prog<-XDCCDownloadMessage{Err: "quit"}
+		return true
+	default:
+		return false
+	}
+}
+
 func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
     OfferMatchesDesired := func (offer string) bool {
         parsed := i.ParseSend(offer)
@@ -74,7 +85,7 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
         return false
     }
 	awaitFeedback := make(chan PrivMsg)
-    fmt.Println("Nick: %s", i.IRCConn.Nick)
+    fmt.Println("Nick: ", i.IRCConn.Nick)
 	i.IRCConn.SubscriptionCh <- PrivMsgSubscription{To: i.IRCConn.Nick, Backchannel: awaitFeedback, Once: true}
 
 	var feedback string
@@ -83,13 +94,16 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 	feedback, recv = i.awaitFeedbackAfterRequest(awaitFeedback)
     a := 0
 	for a = 0; a < 10 && !OfferMatchesDesired(feedback); a++ {
+		
         prog<- XDCCDownloadMessage{Message: "Try: " + strconv.Itoa(a)}
 		i.IRCConn.CommandCh <- fmt.Sprintf("PRIVMSG %s :xdcc send %s", i.Bot, i.Package)
 		feedback, recv = i.awaitFeedbackAfterRequest(awaitFeedback)
         if recv {
             prog<- XDCCDownloadMessage{Message: feedback}
         }
-
+		if i.quitSignalRecv(prog) {
+			return false
+		}
 	}
 
 	if (a >=10) {
@@ -123,7 +137,7 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 	var samplingN int64
 	G:
 	for {
-		conn.SetReadDeadline(time.Now().Add(5*time.Second))
+		conn.SetReadDeadline(time.Now().Add(20*time.Second))
 		n, err2 := conn.Read(recvBuf[:]) // recv data
 		if err2 != nil {
 			prog<-XDCCDownloadMessage{Err: err2.Error()}
@@ -152,6 +166,10 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 			break G
 		}
 
+		if i.quitSignalRecv(prog) {
+			return false
+			// todo: cleanup
+		}
 	}
     f.Sync()
 	f.Close()

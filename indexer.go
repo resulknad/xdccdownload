@@ -1,6 +1,6 @@
 package main
 import "time"
-import "fmt"
+import "log"
 import "strings"
 import "regexp"
 import "os"
@@ -8,6 +8,7 @@ import "path"
 import (
      "github.com/jinzhu/gorm"
      _"github.com/jinzhu/gorm/dialects/sqlite"
+	 "github.com/cytec/releaseparser"
 )
 
 
@@ -15,6 +16,7 @@ type Indexer struct {
     Conf *Config
     db *gorm.DB
     connPool *ConnectionPool
+	announcementCh chan PrivMsg
 }
 
 type Package struct {
@@ -27,6 +29,11 @@ type Package struct {
     Size string
     Gets string
     Time string
+	Parsed releaseparser.Release
+}
+
+func (p *Package) Parse() releaseparser.Release {
+	return *releaseparser.Parse(p.Filename)
 }
 
 func (i *Indexer) AddPackage(p Package) {
@@ -55,27 +62,14 @@ func (i *Indexer) GetPackage(id int) (bool, Package) {
 
 func (i *Indexer) Search(name string) []Package {
     i.db.Unscoped().Delete(Package{}, "updated_at < date('now', '-1 day')") // cleanup
-    fmt.Println(name)
-    var users []Package
-    cnt := 0
-    i.db.Where("Filename LIKE ?", name).Find(&users)
-    for _, el := range users {
-        fmt.Println(el)
-        cnt++
-    }
-    return users
+    var pckgs []Package
+    i.db.Where("Filename LIKE ?", name).Limit(200).Find(&pckgs)
+	for indx, _ := range(pckgs) {
+		// enrich with parsed release info
+		pckgs[indx].Parsed = pckgs[indx].Parse()
+	}
+    return pckgs
 
-}
-
-func (i *Indexer) PrintAll() {
-    cnt := 0
-    var users []Package
-    i.db.Find(&users)
-    for _, el := range users {
-        fmt.Println(el)
-        cnt++
-    }
-    fmt.Println(cnt)
 }
 
 func (i *Indexer) SetupDB() {
@@ -94,7 +88,6 @@ func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
     for {
         select {
             case msg := <-ch:
-				fmt.Println(msg)
                 if listingRegexp.MatchString(msg.Content) {
 
 
@@ -107,30 +100,60 @@ func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
     }
 }
 
+func (indx* Indexer) setupChannelListener(server string, channel string) bool {
+	connPool := indx.connPool
+	i := connPool.GetConnection(server)
+	suc := false
+	for a:= 0; a<3&&!suc; a++ {
+
+		suc = /*i.Connect() &&*/ i!=nil && i.JoinChannel(channel)
+		time.Sleep(time.Duration(0*a)*time.Second)
+		i = connPool.GetConnection(server)
+	}
+
+	if !suc {
+		log.Print("Coulndt connect to ", server, channel)
+		return false
+	}
+
+	i.SubscriptionCh<-PrivMsgSubscription{Once:false, Backchannel: indx.announcementCh, To:channel}
+	return true
+}
+
 func CreateIndexer(c *Config, connPool *ConnectionPool) *Indexer {
     indx := Indexer{Conf: c, connPool: connPool}
     indx.SetupDB()
 
-    ch := make(chan PrivMsg, 100)
+    indx.announcementCh = make(chan PrivMsg, 100)
     for _,el := range c.Channels {
-       	    i := connPool.GetConnection(el.Server)
-        suc := false
-        for a:= 0; a<3&&!suc; a++ {
-
-            suc = /*i.Connect() &&*/ i!=nil && i.JoinChannel(el.Channel)
-            time.Sleep(time.Duration(0*a)*time.Second)
-       	    i = connPool.GetConnection(el.Server)
-        }
-
-        if !suc {
-            fmt.Println("Coulndt connect to ", el.Server, el.Channel)
-	    return nil
-        }
-
-        i.SubscriptionCh<-PrivMsgSubscription{Once:false, Backchannel: ch, To:el.Channel}
+		if !indx.setupChannelListener(el.Server, el.Channel) {
+			return nil
+		}
     }
 
-    go indx.WaitForPackages(ch)
+    go indx.WaitForPackages(indx.announcementCh)
 
     return &indx
+}
+
+func (indx *Indexer) InitWatchDog() {
+	go func() {
+		for {
+			indx.watchDog()
+			time.Sleep(60*time.Second)
+		}
+	}()
+}
+
+func (indx *Indexer) watchDog() {
+	log.Print("watch dog checking connections")
+    for _,el := range indx.Conf.Channels {
+		// if CheckChannels fails, we possibly lost connection to the server...
+		ircConn := indx.connPool.GetConnection(el.Server)
+        if ircConn == nil || !ircConn.CheckChannel(el.Channel) {
+			log.Print("watch dog resetting " + el.Server)
+			indx.connPool.Quit(el.Server)	
+			indx.setupChannelListener(el.Server, el.Channel)
+        }
+    }
 }

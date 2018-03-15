@@ -9,6 +9,7 @@ import "container/list"
 import "regexp"
 import "github.com/elgs/gostrgen"
 import "sync"
+import "log"
 //import "os"
 
 //import "io"
@@ -37,6 +38,13 @@ const (
 type Subscription interface {
     Evaluate(string, *IRC) bool
     GetOnce() bool
+}
+
+type CodeSubscription struct {
+    Subscription
+    Once bool
+    Backchannel chan string
+    Code string
 }
 
 type PrivMsgSubscription struct {
@@ -78,13 +86,38 @@ type GeneralSubscription struct {
     Filter string
 }
 
-func (f GeneralSubscription) Evaluate(msg string, i *IRC) bool {
+func removePrefix(msg string) string {
     noprefixRegexp := regexp.MustCompile(`^:[^ ]+ (.*)`)
-    msg = noprefixRegexp.ReplaceAllString(msg, "${1}")
+    return noprefixRegexp.ReplaceAllString(msg, "${1}")
+}
 
+func removeWholePrefix(msg string) string {
+	noprefixRegexp := regexp.MustCompile(`^:[^ ]+[^:]+:`)
+    return noprefixRegexp.ReplaceAllString(msg, "${1}")
+}
+
+func (f GeneralSubscription) Evaluate(msg string, i *IRC) bool {
+	msg = removePrefix(msg)
     if (strings.HasPrefix(msg, f.Filter)) {
         //fmt.Println("rule struck: %s, msg: %s", f.Filter, msg)
         f.Backchannel <- msg
+        return true
+    }
+    return false
+}
+
+func (f CodeSubscription) GetOnce() bool {
+    return f.Once;
+}
+
+func (f CodeSubscription) Evaluate(msg string, i *IRC) bool {
+	codeRegexp := regexp.MustCompile(`^:[^ ]+ ([0-9]+)`)
+
+
+    if codeRegexp.MatchString(msg) &&
+        codeRegexp.FindStringSubmatch(msg)[1] == f.Code {
+        //fmt.Println("rule struck: %s, msg: %s", f.Filter, msg)
+	        f.Backchannel <- removeWholePrefix(msg)
         return true
     }
     return false
@@ -109,13 +142,13 @@ func (i *IRC) Connect() bool {
     if i.Nick == "" {
         str, _ := gostrgen.RandGen(15, gostrgen.Lower | gostrgen.Upper, "", "")
         i.Nick = str
-        fmt.Println("Generated Nickname, ", i.Nick)
+        log.Print("Generated Nickname, ", i.Nick)
     }
     // setup quit channel
     i.quit = make(chan bool)
     // setup channel for comm handler
-    i.SubscriptionCh = make(chan Subscription, 10)
-    i.CommandCh = make(chan string, 10)
+    i.SubscriptionCh = make(chan Subscription, 1000)
+    i.CommandCh = make(chan string, 1000)
 
     // setup pingponger
     ppChan := make(chan string, 10)
@@ -125,12 +158,12 @@ func (i *IRC) Connect() bool {
     // conenct to server
     conn, err := net.Dial("tcp", i.Server)
     if err != nil {
-        fmt.Println(err)
+        log.Print(err)
         return false
     }
     i.conn = conn
     fmt.Fprintf(conn, "NICK %s\r\n", i.Nick)
-    fmt.Fprintf(conn, "USER %s 8 * : %s\r\n", i.Nick)
+    fmt.Fprintf(conn, "USER %s 8 * : %s\r\n", i.Nick, i.Nick)
     
     // callback channel for registration complete
     regChan := make(chan string)
@@ -148,6 +181,31 @@ func (i *IRC) Connect() bool {
     
     return true
 }
+func (i *IRC) CheckChannel(channel string) bool {
+	log.Print("check channel")
+    i.Lock()
+    defer i.Unlock()
+	c:=channel
+		// issue names command, which returns users in channel
+		// check if we are in this channel
+		namesCh := make(chan string, 10)
+		i.SubscriptionCh<-CodeSubscription{Once: true, Backchannel: namesCh, Code: "353"}
+
+		i.CommandCh<-("NAMES "+c+"\r\n")
+		select {
+		case list := <-namesCh:
+			if !strings.Contains(list, i.Nick) {
+				log.Print("not good")
+				return false
+			}
+		case <-time.After(2*time.Second):
+			log.Print("not good")
+			return false
+		}
+
+	log.Print("good")
+	return true
+}
 func (i *IRC) JoinChannel(channel string) bool {
     i.Lock()
     defer i.Unlock()
@@ -164,15 +222,16 @@ func (i *IRC) JoinChannel(channel string) bool {
     select {
         case <-joinedAwait:
         case <-time.After(10*time.Second):
-            fmt.Println("Join timeout")
+            log.Print("Join timeout")
             i.Quit()
             return false
     }
     i.Channel = channel
-    fmt.Println("joined!!")
+    log.Print("joined!!")
     i.channels = append(i.channels, channel)
     return true
 }
+
 func (i *IRC) ConnHandler() {
     subscriptions := list.New()
     readCh := make(chan string, 10)
@@ -180,9 +239,10 @@ func (i *IRC) ConnHandler() {
     go func(ch chan string) {
         for {
 
-
-
             msg, _ := reader.ReadString('\n')
+			if len(msg) > 0 {
+			//log.Print(msg)
+		}
       //      f, err := os.OpenFile("/tmp/" + i.Nick + ".log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
       //      if err!=nil {
       //          panic(err)
@@ -196,12 +256,12 @@ func (i *IRC) ConnHandler() {
     for {
         select {
         case <-i.quit:
-            fmt.Println("quit")
+            log.Print("Quitting")
             i.conn.Close()
             return
         case cmd := <-i.CommandCh:
             fmt.Fprintf(i.conn, cmd + "\r\n")
-            fmt.Println(cmd, " sent")
+            log.Print(cmd + " sent")
         case filter :=<-i.SubscriptionCh:
             subscriptions.PushBack(filter)
         case msg := <-readCh:
@@ -218,6 +278,6 @@ func (i *IRC) ConnHandler() {
     }
 }
 func (i *IRC) Quit() {
-    fmt.Print("Quit")
+    log.Print("Quit")
     close(i.quit)
 }

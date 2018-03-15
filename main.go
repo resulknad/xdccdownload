@@ -2,17 +2,35 @@ package main
 import "time"
 import "github.com/gin-gonic/gin"
 import "github.com/gin-contrib/cors"
+import "log"
+import "path"
+import "os"
 
 func main() {
+
     connPool := ConnectionPool{}
     c := Config{}
     c.LoadConfig()
+	
+	logFile := path.Join(c.LogDir, time.Now().Format("20060102"))
+	if _, err := os.Stat(logFile); err == nil {
+
+	}
+
+	f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}   
+	defer f.Close()
+	log.SetOutput(f)
 
     var indx *Indexer
     for indx == nil {
 	    indx = CreateIndexer(&c, &connPool)
 	    time.Sleep(1*time.Second)
     }
+
+	indx.InitWatchDog()
 
     // configure rest api handlers
     ie := IndexerEndpoints{indx}

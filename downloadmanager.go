@@ -2,16 +2,19 @@ package main
 import "fmt"
 import "sync"
 import "path"
+import "github.com/elgs/gostrgen"
 
 
 
 type Download struct {
+	ID string
     Packid int
     Targetfolder string
     Pack Package
     Percentage float32
 	Speed int64
     Messages string
+	Quit chan bool `json:"-"`
 }
 
 func CreateDownloadManager(i *Indexer, c *Config, connPool *ConnectionPool) *DownloadManager{
@@ -32,11 +35,9 @@ type DownloadManager struct {
 	downloadCh chan *Download
 }
 
-func (dm *DownloadManager) GetDownload(id int) (int,*Download) {
-    dm.lock.Lock()
-    defer dm.lock.Unlock()
+func (dm *DownloadManager) GetDownload(id string) (int,*Download) {
     for indx,el:= range dm.List {
-        if el.Pack.ID == uint(id) {
+        if el.ID == (id) {
             return indx, el
         }
     }
@@ -59,12 +60,13 @@ func (dm *DownloadManager) AllDownloads() []Download {
     return dls
 }
 
-func (dm *DownloadManager) DeleteOne(id int) {
+func (dm *DownloadManager) DeleteOne(id string) {
     dm.lock.Lock()
     defer dm.lock.Unlock()
-    found, _ := dm.GetDownload(id)
+    found, dl := dm.GetDownload(id)
     if found >-1 {
-        dm.List =append(dm.List[:found],dm.List[found+1:]...)
+		dl.Quit<-true
+        //dm.List =append(dm.List[:found],dm.List[found+1:]...)
     }
 }
 
@@ -84,8 +86,9 @@ func (dm *DownloadManager) DownloadWorker() {
 			dm.lock.Unlock()
 			continue F
 		}
+
 		ch := make(chan XDCCDownloadMessage, 200)
-		x := XDCC{Bot: p.Bot, Channel: p.Channel, Package: p.Package, IRCConn: i, Filename: p.Filename, Conf: dm.Conf}
+		x := XDCC{Bot: p.Bot, Channel: p.Channel, Package: p.Package, IRCConn: i, Filename: p.Filename, Conf: dm.Conf, Quit: d.Quit}
 		go x.Download(ch, dm.Conf.TempPath)
 		var filePath string
 		for filePath == "" {
@@ -109,8 +112,9 @@ func (dm *DownloadManager) DownloadWorker() {
 			}
 		}
 		d.Messages += "Unpacking..."
-		u := Unpack{dm.Conf.TempPath, path.Join(dm.Conf.TargetPath, d.Targetfolder), filePath}
+		u := Unpack{dm.Conf.TempPath, path.Join(dm.Conf.GetTargetDir(p.Parse().Type), d.Targetfolder), filePath}
 		u.Do()
+		d.Messages += "done"
 	}
 }
 }
@@ -122,7 +126,9 @@ func printSlice(s []*Download) {
 func (dm *DownloadManager) CreateDownload(d Download) {
     dm.lock.Lock()
     defer dm.lock.Unlock()
+	d.ID,_ = gostrgen.RandGen(15, gostrgen.Lower | gostrgen.Upper, "", "")
     d.Percentage = 0.0
+	d.Quit = make(chan bool, 1)
     dm.List = append(dm.List, &d)
     dm.downloadCh<-&d
 }

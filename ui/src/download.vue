@@ -2,9 +2,12 @@
     <div>
           <b-table hover :items="pckgs" :fields="fields">
           <template slot="actions" slot-scope="cell">
-              <b-btn size="sm" @click.stop="cancel(cell.item,cell.index,$event.target)">Stop</b-btn>
+
+
             </template>          <template slot="actions" slot-scope="cell">
               <b-btn @click="showModal(cell.item.Messages)">Info</b-btn>
+              <b-btn size="sm" @click.stop="retry(cell.item,cell.index,$event.target)">Retry</b-btn>
+              <b-btn size="sm" @click.stop="cancel(cell.item,cell.index,$event.target)">Stop</b-btn>
             </template></b-table>
               </b-table>
               
@@ -27,10 +30,13 @@ export default {
         pckgs: [],
           fields: [
               {key: 'Pack', formatter: (s) => s.Filename},
+
         {
           key: 'Percentage',
           sortable: true
-        }, "actions"],
+        }, 
+              {key:'Messages'},
+"actions"],
         intv: false,
         modalShow: false,
         info: ""
@@ -42,7 +48,7 @@ export default {
             this.info = msgs
         },
         cancel(it) {
-            axios.delete(consts.baseURL + `download/` + it.Pack.ID)
+            axios.delete(consts.baseURL + `download/` + it.ID)
             .then(response => {
                 console.log(response)
             })
@@ -50,6 +56,13 @@ export default {
             .catch(e => {
                 console.log(e);
             })
+        },
+        retry(p) {
+            axios.post(consts.baseURL + `download/`, {targetfolder: p.Targetfolder, packid: p.Pack.ID})
+            .then(response => {
+                console.log(response)
+            })
+
         },
         loadData: function() {
     axios.get(consts.baseURL + `download/`)
