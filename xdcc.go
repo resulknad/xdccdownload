@@ -9,6 +9,7 @@ import "time"
 import "regexp"
 import "os"
 import "strconv"
+import "encoding/binary"
 
 type XDCCDownloadMessage struct {
     Progress    float32
@@ -156,8 +157,15 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 		} else {
 			samplingN += int64(n)
 		}
+		
 		recvBytes = recvBytes + int64(n)
 		recvBytesSinceLastAck += int64(n)
+		// send ack
+		bs := make([]byte, 4)
+		 binary.BigEndian.PutUint32(bs, uint32(recvBytesSinceLastAck))
+		 recvBytesSinceLastAck = 0
+		 conn.Write(bs)
+
 		f.Write(recvBuf[:n])
 
         prog<-XDCCDownloadMessage{Progress: float32(recvBytes)/float32(offer.Size)}

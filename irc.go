@@ -278,6 +278,11 @@ func (i *IRC) ConnHandler() {
     }
 }
 func (i *IRC) Quit() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Print("Recovered, couldnt close irc channel, possibly closed before")
+		}
+	}()
     log.Print("Quit")
     close(i.quit)
 }

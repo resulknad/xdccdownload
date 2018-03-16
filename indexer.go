@@ -104,7 +104,7 @@ func (indx* Indexer) setupChannelListener(server string, channel string) bool {
 	connPool := indx.connPool
 	i := connPool.GetConnection(server)
 	suc := false
-	for a:= 0; a<3&&!suc; a++ {
+	for a:= 0; a<1&&!suc; a++ {
 
 		suc = /*i.Connect() &&*/ i!=nil && i.JoinChannel(channel)
 		time.Sleep(time.Duration(0*a)*time.Second)
@@ -127,7 +127,7 @@ func CreateIndexer(c *Config, connPool *ConnectionPool) *Indexer {
     indx.announcementCh = make(chan PrivMsg, 100)
     for _,el := range c.Channels {
 		if !indx.setupChannelListener(el.Server, el.Channel) {
-			return nil
+			//return nil
 		}
     }
 
