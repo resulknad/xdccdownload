@@ -172,6 +172,16 @@ func (i *IRC) PingListener(channel chan string){
         }
     }
 }
+func (i *IRC) BanListener(channel chan string){
+    for {
+        select {
+        case ban := <-channel:
+			log.Print("Banned from channel..." + ban)
+        case <-i.quit:
+            return
+        }
+    }
+}
 
 func (i *IRC) Connect() bool {
     if i.Nick == "" {
@@ -190,6 +200,10 @@ func (i *IRC) Connect() bool {
     go i.PingListener(ppChan)
     i.SubscriptionCh<-GeneralSubscription{Once: false, Backchannel: ppChan, Filter: "PING"}
 
+    // setup banlistener
+    banChan := make(chan string, 10)
+    go i.BanListener(banChan)
+    i.SubscriptionCh<-CodeSubscription{Once: false, Backchannel: banChan, Code: "474"}
     // conenct to server
     conn, err := net.Dial("tcp", i.Server)
     if err != nil {
