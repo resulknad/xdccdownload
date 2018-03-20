@@ -38,16 +38,40 @@ const (
 type Subscription interface {
     Evaluate(string, *IRC) bool
     GetOnce() bool
+	GetQuit() *SubscriptionQuit
 }
+
+type SubscriptionQuit struct {
+	Quit chan bool
+}
+
+func (s *SubscriptionQuit) IsClosed() bool {
+	if s == nil {
+		return false
+	}
+	select {
+		case <-s.Quit:
+			return true
+		default:
+			return false
+	}
+}
+func (s *SubscriptionQuit) Init() {
+	s.Quit = make(chan bool)
+	log.Print(s)
+}
+	
 
 type CodeSubscription struct {
     Subscription
+	Quit *SubscriptionQuit
     Once bool
     Backchannel chan string
     Code string
 }
 
 type PrivMsgSubscription struct {
+	Quit *SubscriptionQuit
     Subscription
     Once bool
     Backchannel chan PrivMsg
@@ -74,6 +98,9 @@ func (f PrivMsgSubscription) Evaluate(msg string, i *IRC) bool {
     }
     return false
 }
+func (f PrivMsgSubscription) GetQuit() *SubscriptionQuit {
+    return f.Quit;
+}
 
 func (f PrivMsgSubscription) GetOnce() bool {
     return f.Once;
@@ -81,9 +108,13 @@ func (f PrivMsgSubscription) GetOnce() bool {
 
 type GeneralSubscription struct {
     Subscription
+	Quit *SubscriptionQuit
     Once bool
     Backchannel chan string
     Filter string
+}
+func (f GeneralSubscription) GetQuit() *SubscriptionQuit {
+    return f.Quit;
 }
 
 func removePrefix(msg string) string {
@@ -106,8 +137,12 @@ func (f GeneralSubscription) Evaluate(msg string, i *IRC) bool {
     return false
 }
 
+
 func (f CodeSubscription) GetOnce() bool {
     return f.Once;
+}
+func (f CodeSubscription) GetQuit() *SubscriptionQuit {
+    return f.Quit;
 }
 
 func (f CodeSubscription) Evaluate(msg string, i *IRC) bool {
@@ -189,22 +224,43 @@ func (i *IRC) CheckChannel(channel string) bool {
 		// issue names command, which returns users in channel
 		// check if we are in this channel
 		namesCh := make(chan string, 10)
-		i.SubscriptionCh<-CodeSubscription{Once: true, Backchannel: namesCh, Code: "353"}
+		namesSub := CodeSubscription{Once: false, Backchannel: namesCh, Code: "353", Quit: &SubscriptionQuit{}}
+		log.Print(namesSub.GetQuit())
+		namesSub.GetQuit().Init()
+		i.SubscriptionCh<-namesSub
+
+		endNamesCh := make(chan string, 10)
+		endNamesSub := CodeSubscription{Once: true, Backchannel: endNamesCh, Code: "363", Quit: &SubscriptionQuit{}}
+		endNamesSub.GetQuit().Init()
+		i.SubscriptionCh<-endNamesSub
+
+		defer func() {
+			log.Print(namesSub)
+			close(namesSub.GetQuit().Quit)
+			close(endNamesSub.GetQuit().Quit)
+		}()
 
 		i.CommandCh<-("NAMES "+c+"\r\n")
-		select {
-		case list := <-namesCh:
-			if !strings.Contains(list, i.Nick) {
-				log.Print("not good")
+		for {
+			select {
+			case list := <-namesCh:
+				if strings.Contains(list, i.Nick) {
+					log.Print("good")
+					//log.Print(list)
+					return true
+				}
+			case <-endNamesCh:
+				log.Print("end names not good")
+				return false
+	
+			case <-time.After(10*time.Second):
+				log.Print("timeout not good")
 				return false
 			}
-		case <-time.After(2*time.Second):
-			log.Print("not good")
-			return false
 		}
 
-	log.Print("good")
-	return true
+		log.Print("good")
+		return true
 }
 func (i *IRC) JoinChannel(channel string) bool {
     i.Lock()
@@ -270,7 +326,7 @@ func (i *IRC) ConnHandler() {
             for el := subscriptions.Front(); el != nil; el = next {
                 next = el.Next()
                 elVal := el.Value.(Subscription)
-                if elVal.Evaluate(msg, i) && elVal.GetOnce() {
+                if elVal.GetQuit().IsClosed() || (elVal.Evaluate(msg, i) && elVal.GetOnce()) {
                     subscriptions.Remove(el)
                 }
             }
