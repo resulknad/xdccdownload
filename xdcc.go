@@ -10,6 +10,7 @@ import "regexp"
 import "os"
 import "strconv"
 import "encoding/binary"
+import "log"
 
 type XDCCDownloadMessage struct {
     Progress    float32
@@ -126,10 +127,19 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
         prog<- XDCCDownloadMessage{Err: string(err.Error())}
 		return false
 	}
-	var recvBytes int64
-    var recvBytesSinceLastAck int64
+	var recvBytes uint64
 	recvBytes = 0
-    recvBytesSinceLastAck = 0
+	
+	mirc64 := false
+	if offer.Size>>32 > 0 {
+		mirc64 = true	
+		log.Print("Mirc64")
+	} else {
+		log.Print("Mirc32")
+	}
+
+	recoveredErr := false
+
 	recvBuf := make([]byte, 4096)
     pathToFile := path.Join(tempdir, url.PathEscape(offer.Filename))
 	f, err := os.Create(pathToFile)
@@ -141,9 +151,29 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 		conn.SetReadDeadline(time.Now().Add(20*time.Second))
 		n, err2 := conn.Read(recvBuf[:]) // recv data
 		if err2 != nil {
-			prog<-XDCCDownloadMessage{Err: err2.Error()}
-			return false
+			// try recovering, some bots need this...
+			if (mirc64) {
+				bs := make([]byte, 8)
+				binary.BigEndian.PutUint64(bs, uint64(recvBytes))
+				conn.Write(bs)
+
+			} else {
+				bs := make([]byte, 4)
+				binary.BigEndian.PutUint32(bs, uint32(recvBytes))
+				conn.Write(bs)
+			}
+			log.Print("sending recv bytes...")
+
+			if (recoveredErr) { // if this didnt work, we exit
+				prog<-XDCCDownloadMessage{Err: err2.Error()}
+				return false
+			}
+
+			recoveredErr = true
+		} else {
+			recoveredErr = false // we weither recovered or the error never happened
 		}
+
 		if (samplingN > int64(i.Conf.SpeedLimit)*int64(1024)) {
 			elapsed := time.Since(timeLastRecv)
 			if elapsed < time.Duration(time.Second) {
@@ -158,18 +188,16 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 			samplingN += int64(n)
 		}
 		
-		recvBytes = recvBytes + int64(n)
-		recvBytesSinceLastAck += int64(n)
+		recvBytes = recvBytes + uint64(n)
+		//recvBytesSinceLastAck += int64(n)
 		// send ack
-		bs := make([]byte, 4)
-		 binary.BigEndian.PutUint32(bs, uint32(recvBytesSinceLastAck))
-		 recvBytesSinceLastAck = 0
-		 conn.Write(bs)
+
+
 
 		f.Write(recvBuf[:n])
 
         prog<-XDCCDownloadMessage{Progress: float32(recvBytes)/float32(offer.Size)}
-		if recvBytes == (offer.Size) {
+		if int64(recvBytes) == (offer.Size) {
 			fmt.Println("Received file.")
 			break G
 		}
@@ -182,6 +210,5 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
     f.Sync()
 	f.Close()
     prog<-XDCCDownloadMessage{Filename: pathToFile}
-	return  (recvBytes) == (offer.Size)
+	return  int64(recvBytes) == (offer.Size)
 }
-
