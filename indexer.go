@@ -29,14 +29,29 @@ type Package struct {
     Size string
     Gets string
     Time string
+	ReleaseID uint
 	Parsed releaseparser.Release
+}
+
+type Release struct {
+	releaseparser.Release
+	gorm.Model
 }
 
 func (p *Package) Parse() releaseparser.Release {
 	return *releaseparser.Parse(p.Filename)
 }
 
+func (i *Indexer) getReleaseForPackage(p Package) Release {
+	var release Release
+	parsed := (p.Parse())
+    i.db.Where(&parsed).FirstOrCreate(&release)
+	log.Print(release)
+	return release	
+}
+
 func (i *Indexer) AddPackage(p Package) {
+	p.ReleaseID = i.getReleaseForPackage(p).ID
     if !i.UpdateIfExists(p) {
         i.db.Create(&p)
     }
@@ -66,7 +81,7 @@ func (i *Indexer) Search(name string) []Package {
     i.db.Where("Filename LIKE ?", name).Limit(200).Find(&pckgs)
 	for indx, _ := range(pckgs) {
 		// enrich with parsed release info
-		pckgs[indx].Parsed = pckgs[indx].Parse()
+		pckgs[indx].Parsed = i.getReleaseForPackage(pckgs[indx])
 	}
     return pckgs
 
@@ -80,6 +95,7 @@ func (i *Indexer) SetupDB() {
   }
   i.db = db
   db.AutoMigrate(&Package{})
+  db.AutoMigrate(&Release{})
 }
 
 func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
@@ -145,15 +161,25 @@ func (indx *Indexer) InitWatchDog() {
 	}()
 }
 
-func (indx *Indexer) watchDog() {
+func (indx *Indexer) watchDog() bool {
 	log.Print("watch dog checking connections")
+	connectionReset := false
     for _,el := range indx.Conf.Channels {
 		// if CheckChannels fails, we possibly lost connection to the server...
 		ircConn := indx.connPool.GetConnection(el.Server)
-        if ircConn == nil || !ircConn.CheckChannel(el.Channel) {
+        if ircConn == nil || !ircConn.StillConnected() {
 			log.Print("watch dog resetting " + el.Server)
 			indx.connPool.Quit(el.Server)	
 			indx.setupChannelListener(el.Server, el.Channel)
-        }
+			connectionReset = true
+        } else if !ircConn.CheckChannel(el.Channel) {
+			log.Print("watch dog rejoining " + el.Channel)
+			if ircConn.JoinChannel(el.Channel) {
+				log.Print("rejoined " + el.Channel)
+			} else {
+				log.Print("failed to rejoin " + el.Channel)
+			}
+		}
     }
+	return connectionReset
 }

@@ -230,6 +230,21 @@ func (i *IRC) Connect() bool {
     
     return true
 }
+func (i *IRC) StillConnected() bool {
+    str, _ := gostrgen.RandGen(5, gostrgen.Lower | gostrgen.Upper, "", "")
+
+    pongAwait := make(chan string)
+    i.SubscriptionCh<-GeneralSubscription{Filter: "PONG", Backchannel:pongAwait, Once:true}
+
+	i.CommandCh<-("PING "+str+"\r\n")
+	select {
+	case <-pongAwait:
+		return true
+	case <-time.After(2*time.Second):
+		return false
+	}
+	return true
+}
 func (i *IRC) CheckChannel(channel string) bool {
 	log.Print("check channel")
     i.Lock()
@@ -265,16 +280,27 @@ func (i *IRC) CheckChannel(channel string) bool {
 				}
 			case <-endNamesCh:
 				log.Print("end names not good")
+				i.removeChannel(c)
 				return false
 	
 			case <-time.After(10*time.Second):
 				log.Print("timeout not good")
+				i.removeChannel(c)
 				return false
 			}
 		}
 
 		log.Print("good")
 		return true
+}
+func (i *IRC) removeChannel(channel string) { // unlocked! must be called within lock
+	for j,v := range(i.channels) {
+		if channel == v {
+			i.channels[j] = i.channels[len(i.channels)-1] // Replace it with the last one.
+			i.channels = i.channels[:len(i.channels)-1]   // Chop off the last one.
+		}
+
+	}
 }
 func (i *IRC) JoinChannel(channel string) bool {
     i.Lock()
