@@ -30,7 +30,7 @@ type Package struct {
     Gets string
     Time string
 	ReleaseID uint
-	Parsed releaseparser.Release
+	Parsed Release
 }
 
 type Release struct {
