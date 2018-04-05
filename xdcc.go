@@ -92,10 +92,10 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 
 	var feedback string
 	recv := false
-
+	CMAXTRIES := 2
 	feedback, recv = i.awaitFeedbackAfterRequest(awaitFeedback)
     a := 0
-	for a = 0; a < 10 && !OfferMatchesDesired(feedback); a++ {
+	for a = 0; a < CMAXTRIES && !OfferMatchesDesired(feedback); a++ {
 		
         prog<- XDCCDownloadMessage{Message: "Try: " + strconv.Itoa(a)}
 		i.IRCConn.CommandCh <- fmt.Sprintf("PRIVMSG %s :xdcc send %s", i.Bot, i.Package)
@@ -108,7 +108,7 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 		}
 	}
 
-	if (a >=10) {
+	if (a >=CMAXTRIES) {
         prog<- XDCCDownloadMessage{Err: "No dcc send from bot"}
 		i.IRCConn.CommandCh <- fmt.Sprintf("PRIVMSG %s :xdcc remove", i.Bot) // we might be on some queue...
         	prog<- XDCCDownloadMessage{Err: "no dcc send"}
@@ -149,6 +149,10 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 	G:
 	for {
 		conn.SetReadDeadline(time.Now().Add(20*time.Second))
+		if int64(recvBytes) == (offer.Size) { // maybe EOF => done
+			fmt.Println("Received file.")
+			break G
+		}
 		n, err2 := conn.Read(recvBuf[:]) // recv data
 		if err2 != nil {
 			// try recovering, some bots need this...
@@ -174,7 +178,7 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 			recoveredErr = false // we weither recovered or the error never happened
 		}
 
-		if (samplingN > int64(i.Conf.SpeedLimit)*int64(1024)) {
+		if (i.Conf.SpeedLimit != 0 && samplingN > int64(i.Conf.SpeedLimit)*int64(1024)) {
 			elapsed := time.Since(timeLastRecv)
 			if elapsed < time.Duration(time.Second) {
 				time.Sleep(time.Duration(time.Second)-elapsed)
@@ -197,10 +201,6 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 		f.Write(recvBuf[:n])
 
         prog<-XDCCDownloadMessage{Progress: float32(recvBytes)/float32(offer.Size)}
-		if int64(recvBytes) == (offer.Size) {
-			fmt.Println("Received file.")
-			break G
-		}
 
 		if i.quitSignalRecv(prog) {
 			return false

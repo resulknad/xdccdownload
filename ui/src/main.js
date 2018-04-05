@@ -7,6 +7,7 @@ import App from './App.vue'
 import Search from './search.vue'
 import Nav from './navbar.vue'
 import Download from './download.vue'
+import Tasks from './tasks.vue'
 
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap-vue/dist/bootstrap-vue.css"
@@ -17,7 +18,8 @@ Vue.use(VueRouter)
 const router = new VueRouter({
     routes: [{path: '/', component: App},
         {path: '/search', name:'search', component: Search},
-        {path: '/downloads', name:'downloads', component: Download}]
+        {path: '/downloads', name:'downloads', component: Download},
+        {path: '/tasks', name:'tasks', component: Tasks}]
 })
 
 new Vue({

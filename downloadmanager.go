@@ -2,6 +2,8 @@ package main
 import "fmt"
 import "sync"
 import "path"
+import "os"
+import "time"
 import "github.com/elgs/gostrgen"
 
 
@@ -14,6 +16,7 @@ type Download struct {
     Percentage float32
 	Speed int64
     Messages string
+	State int
 	Quit chan bool `json:"-"`
 }
 
@@ -35,7 +38,13 @@ type DownloadManager struct {
 	downloadCh chan *Download
 }
 
-func (dm *DownloadManager) GetDownload(id string) (int,*Download) {
+func (dm *DownloadManager) GetDownload(id string) (int,*Download) { // locked fn for outside access
+    dm.lock.Lock()
+    defer dm.lock.Unlock()
+	return dm.getDownload(id)
+}
+
+func (dm *DownloadManager) getDownload(id string) (int,*Download) {
     for indx,el:= range dm.List {
         if el.ID == (id) {
             return indx, el
@@ -63,7 +72,7 @@ func (dm *DownloadManager) AllDownloads() []Download {
 func (dm *DownloadManager) DeleteOne(id string) {
     dm.lock.Lock()
     defer dm.lock.Unlock()
-    found, dl := dm.GetDownload(id)
+    found, dl := dm.getDownload(id)
     if found >-1 {
 		dl.Quit<-true
         //dm.List =append(dm.List[:found],dm.List[found+1:]...)
@@ -88,6 +97,14 @@ func (dm *DownloadManager) DownloadWorker() {
 		}
 
 		ch := make(chan XDCCDownloadMessage, 200)
+		if os.Getenv("FAKEDL") == "1" {
+			time.Sleep(3*time.Second)
+			d.Messages = "Skipped dl for debugging"
+			d.State = 1
+			continue
+		}
+
+			
 		x := XDCC{Bot: p.Bot, Channel: p.Channel, Package: p.Package, IRCConn: i, Filename: p.Filename, Conf: dm.Conf, Quit: d.Quit}
 		go x.Download(ch, dm.Conf.TempPath)
 		var filePath string
@@ -103,6 +120,7 @@ func (dm *DownloadManager) DownloadWorker() {
 					filePath = msg.Filename
 				} else if msg.Err != "" {
 					d.Messages += msg.Err + "\n"
+					d.State = -1
 					dm.lock.Unlock()
 					continue F
 				} else if msg.Speed != 0 {
@@ -114,6 +132,7 @@ func (dm *DownloadManager) DownloadWorker() {
 		d.Messages += "Unpacking..."
 		u := Unpack{dm.Conf.TempPath, path.Join(dm.Conf.GetTargetDir(p.Parse().Type), d.Targetfolder), filePath}
 		u.Do()
+		d.State = 1
 		d.Messages += "done"
 	}
 }
@@ -123,12 +142,14 @@ func printSlice(s []*Download) {
 	fmt.Printf("len=%d cap=%d %v\n", len(s), cap(s), s)
 }
 
-func (dm *DownloadManager) CreateDownload(d Download) {
+func (dm *DownloadManager) CreateDownload(d Download) string {
     dm.lock.Lock()
     defer dm.lock.Unlock()
 	d.ID,_ = gostrgen.RandGen(15, gostrgen.Lower | gostrgen.Upper, "", "")
+	d.State = 0
     d.Percentage = 0.0
 	d.Quit = make(chan bool, 1)
     dm.List = append(dm.List, &d)
     dm.downloadCh<-&d
+	return d.ID
 }

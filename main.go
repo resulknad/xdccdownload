@@ -7,7 +7,6 @@ import "path"
 import "os"
 
 func main() {
-
     connPool := ConnectionPool{}
     c := Config{}
     c.LoadConfig()
@@ -30,11 +29,21 @@ func main() {
 	    time.Sleep(1*time.Second)
     }
 
+	if os.Args[1] == "update" {
+		imdb := CreateIMDB(&c)
+		imdb.UpdateData()
+		indx.EnrichAll()
+	}
+
 	indx.InitWatchDog()
 
     // configure rest api handlers
     ie := IndexerEndpoints{indx}
-    dm := DownloadManagerRestAPI{*CreateDownloadManager(indx, &c, &connPool)}
+	dlm := CreateDownloadManager(indx, &c, &connPool)
+    dm := DownloadManagerRestAPI{dlm}
+
+
+
     router := gin.Default()
     config := cors.DefaultConfig()
     config.AllowAllOrigins = true
@@ -52,6 +61,14 @@ func main() {
     router.DELETE("/download/:id", dm.Delete)
     router.POST("/download/", dm.Create)
     router.PUT("/download/:id", dm.Update)
+
+	tm := CreateTaskmgr(indx, dlm)
+	go tm.StartAllTasks()
+    tm_api := TaskmgrEndpoints{tm}
+	router.GET("/tasks/", tm_api.All)
+	router.GET("/tasks/:id", tm_api.Get)
+	router.DELETE("/tasks/:id", tm_api.Delete)
+	router.PUT("/tasks/:id", tm_api.Update)
 
     router.Run(":" + string(c.Port))
     for {

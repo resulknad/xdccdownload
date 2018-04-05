@@ -59,11 +59,11 @@ watch: {
         showModal(p) {
             this.modalShow =true
             this.downloadId = p.ID
-            this.configBaseDir = this.config.TargetPaths.filter(t => t.Type == p.Parsed.type)[0].Dir
-            if (p.Parsed.type == "tvshow") {
-                this.targetFolder = p.Parsed.title + "/" + "Season " + p.Parsed.season +"/"
+            this.configBaseDir = this.config.TargetPaths.filter(t => t.Type == p.Release.type)[0].Dir
+            if (p.Release.type == "tvshow") {
+                this.targetFolder = p.Release.title + "/" + "Season " + p.Release.season +"/"
             } else {
-                this.targetFolder = p.Parsed.title + "/"
+                this.targetFolder = p.Release.title + "/"
 
             }
         },

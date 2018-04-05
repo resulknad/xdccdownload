@@ -2,9 +2,11 @@ package main
 import "time"
 import "log"
 import "strings"
+import "strconv"
 import "regexp"
 import "os"
 import "path"
+import "fmt"
 import (
      "github.com/jinzhu/gorm"
      _"github.com/jinzhu/gorm/dialects/sqlite"
@@ -16,6 +18,7 @@ type Indexer struct {
     Conf *Config
     db *gorm.DB
     connPool *ConnectionPool
+	imdb *IMDB
 	announcementCh chan PrivMsg
 }
 
@@ -30,23 +33,128 @@ type Package struct {
     Gets string
     Time string
 	ReleaseID uint
-	Parsed Release
+	Release Release  `gorm:"foreignkey:ReleaseID"` 
 }
 
 type Release struct {
+	IMDBId string
+	AvgRating float64
+	NumVotes int
 	releaseparser.Release
 	gorm.Model
+}
+
+type Downloaded struct {
+	gorm.Model
+	Filename string
+	Location string
+	ReleaseID uint
+}
+
+func (i *Indexer) AddDownloaded(p Package) {
+	r := i.getReleaseForPackage(p)
+	rID := r.ID
+
+	d := Downloaded{Filename: p.Filename, Location: "", ReleaseID: rID}
+    i.db.Create(&d)
+}
+
+func (i *Indexer) CheckDownloadedExact(p Package) bool {
+	//i.db.LogMode(true)
+	r := i.getReleaseForPackage(p)//p.Parse() 
+	r.ID =	0 
+	return i.releaseDownloaded(&r)
+}
+
+func (i *Indexer) releaseDownloaded(r *Release) bool {
+		res, err := i.db.Table("releases").Select("*").Joins("left join downloadeds on releases.id = downloadeds.release_id").Where(r).Where("downloadeds.id > -1").Limit(1).Rows()	
+		defer res.Close()
+		return (err == nil) && (res.Next())
+
+}
+
+func (i *Indexer) CheckDownloaded(p Package) bool {
+	//i.db.LogMode(true)
+	r := i.getReleaseForPackage(p)//p.Parse() 
+	if r.Type == "movie" {
+		return i.releaseDownloaded(&Release{Release: releaseparser.Release{Type: r.Type, Title: r.Title, Year: r.Year}})
+	} else if (r.Type == "tvshow") {
+		return i.releaseDownloaded(&Release{Release: releaseparser.Release{Type: r.Type, Title: r.Title, Season: r.Season, Episode: r.Episode}})
+	}
+	return false
+}
+
+func (i *Indexer) EnrichWithIMDB(r *Release) {
+	var id string
+	if r.Type == "movie" {
+		id = i.imdb.GetIdForMovie(r.Title, r.Year)
+	} else {
+		id = i.imdb.GetIdForShow(r.Title)
+	}
+	if id != "" {
+		rating, num := i.imdb.GetRating(id)	
+		r.IMDBId = id
+		r.AvgRating = rating
+		r.NumVotes = num
+	}
+}
+
+func (i *Indexer) EnrichAll() { 
+    var rs []Release
+	tx := i.db.Begin()
+	i.db.Where(Release{IMDBId:""}).Find(&rs)
+	for _, r := range(rs) {
+		i.EnrichWithIMDB(&r)
+		tx.Save(r)
+		log.Print(r)
+	}
+	tx.Commit()
 }
 
 func (p *Package) Parse() releaseparser.Release {
 	return *releaseparser.Parse(p.Filename)
 }
 
+func (p *Package) SizeMbytes() float64 {
+	size := strings.Trim(p.Size, " ")
+	if len(size) == 0 {
+		return -1
+	}
+	lastC := size[len(size)-1:]	
+	s,err := strconv.ParseFloat(size[:len(size)-1], 64)
+	if err != nil {
+		return -1
+	}
+	if lastC == "M" {
+		return s
+	}
+	if lastC == "G" {
+		return s*1024
+	}
+	return -1
+}
+
+func (p *Package) TargetFolder() string {
+
+	// TODO: make sure one cant move outside of download directory...
+	pp := p.Parse()
+	if pp.Type == "tvshow" {
+		return fmt.Sprintf("%s/Season %d/",pp.Title, pp.Season)
+	} else {
+		return pp.Title
+	} 
+}
+
 func (i *Indexer) getReleaseForPackage(p Package) Release {
 	var release Release
-	parsed := (p.Parse())
-    i.db.Where(&parsed).FirstOrCreate(&release)
-	log.Print(release)
+	for release.ID == 0 {
+		parsed := p.Parse()	
+		i.db.Where(&parsed).First(&release)
+		if release.ID == 0 {
+			i.EnrichWithIMDB(&release)
+			i.db.Save(&release)
+		}
+	}
 	return release	
 }
 
@@ -74,15 +182,18 @@ func (i *Indexer) GetPackage(id int) (bool, Package) {
     i.db.First(&pack, id)
     return true, pack
 }
+func (i *Indexer) RemovePackage(p *Package) {
+    i.db.Delete(p) // cleanup
+}
 
 func (i *Indexer) Search(name string) []Package {
     i.db.Unscoped().Delete(Package{}, "updated_at < date('now', '-1 day')") // cleanup
     var pckgs []Package
-    i.db.Where("Filename LIKE ?", name).Limit(200).Find(&pckgs)
-	for indx, _ := range(pckgs) {
+    i.db.Where("Filename LIKE ?", name).Limit(200).Preload("Release").Find(&pckgs)
+	/*for indx, _ := range(pckgs) {
 		// enrich with parsed release info
 		pckgs[indx].Parsed = i.getReleaseForPackage(pckgs[indx])
-	}
+	}*/
     return pckgs
 
 }
@@ -96,6 +207,7 @@ func (i *Indexer) SetupDB() {
   i.db = db
   db.AutoMigrate(&Package{})
   db.AutoMigrate(&Release{})
+  db.AutoMigrate(&Downloaded{})
 }
 
 func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
@@ -139,6 +251,8 @@ func (indx* Indexer) setupChannelListener(server string, channel string) bool {
 func CreateIndexer(c *Config, connPool *ConnectionPool) *Indexer {
     indx := Indexer{Conf: c, connPool: connPool}
     indx.SetupDB()
+
+	indx.imdb = CreateIMDB(c)
 
     indx.announcementCh = make(chan PrivMsg, 100)
     for _,el := range c.Channels {
