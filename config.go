@@ -41,6 +41,15 @@ func (c *Config) GetTargetDir(pType string) string {
 	return c.TargetPaths[0].Dir
 }
 
+func (c *Config) GetDirs() []string {
+	dirs := []string{}
+	for _,d := range(c.TargetPaths) {
+		dirs = append(dirs,d.Dir)
+	}
+	return dirs
+}
+
+
 func (c *Config) SaveConfig() {
     configJson, _ := json.Marshal((c))
     p := path.Join(os.Getenv("HOME"), ".config.json")

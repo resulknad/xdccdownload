@@ -24,12 +24,12 @@ func main() {
 	log.SetOutput(f)
 
     var indx *Indexer
-    for indx == nil {
+    //for indx == nil {
 	    indx = CreateIndexer(&c, &connPool)
-	    time.Sleep(1*time.Second)
-    }
+	//    time.Sleep(1*time.Second)
+    //}
 
-	if os.Args[1] == "update" {
+	if len(os.Args) > 1 && os.Args[1] == "update" {
 		imdb := CreateIMDB(&c)
 		imdb.UpdateData()
 		indx.EnrichAll()
@@ -57,6 +57,7 @@ func main() {
     // specify endpoints
     router.GET("/config/", func (g *gin.Context) { g.JSON(200, c) })
     router.GET("/packages/:query", ie.pkgQuery)
+    router.GET("/resetdownloaded/", ie.ResetDlDb)
     router.GET("/download/", dm.ListAll)
     router.DELETE("/download/:id", dm.Delete)
     router.POST("/download/", dm.Create)
@@ -66,6 +67,7 @@ func main() {
 	go tm.StartAllTasks()
     tm_api := TaskmgrEndpoints{tm}
 	router.GET("/tasks/", tm_api.All)
+	router.POST("/tasks/", tm_api.Create)
 	router.GET("/tasks/:id", tm_api.Get)
 	router.DELETE("/tasks/:id", tm_api.Delete)
 	router.PUT("/tasks/:id", tm_api.Update)

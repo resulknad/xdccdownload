@@ -1,8 +1,8 @@
 package main
 import "log"
-import "time"
 
 import (
+	"time"
      "github.com/jinzhu/gorm"
      _"github.com/jinzhu/gorm/dialects/sqlite"
 	 "github.com/fatih/structs"
@@ -18,6 +18,7 @@ type Task struct {
 	Taskinfo
 	State int
 	queue chan Package
+	parsedExp *ParsedExpression
 	quit chan bool
 	indx *Indexer
 	dlm *DownloadManager
@@ -29,6 +30,12 @@ func (t* Task) Init(indx *Indexer, dlm *DownloadManager) {
 	t.State = 1
 	t.indx = indx
 	t.dlm = dlm
+	err,pe := ParseToPE(t.Criteria)
+	
+	if err != nil || t.Criteria == "" {
+	} else {
+		t.parsedExp = pe
+	}
 	t.queue = make(chan Package, 10)
 	t.quit = make(chan bool)
 }
@@ -39,7 +46,13 @@ func (t *Task) MatchesCriterias(p Package) bool {
 	for k,v := range structs.Map(t.indx.getReleaseForPackage(p).Release) {
 		m["r" + k] = v
 	}
-	match, err := ParseAndEval(t.Criteria, m)
+	for k,v := range structs.Map(t.indx.getReleaseForPackage(p)) {
+		m["r" + k] = v
+	}
+	if t.parsedExp == nil {
+		return false
+	}
+	err, match := t.parsedExp.Eval(m)
 	if err != nil{
 		log.Print("Error evaluating " + t.Criteria)
 		return false
@@ -48,23 +61,7 @@ func (t *Task) MatchesCriterias(p Package) bool {
 	return match
 }
 
-func (t *Task) EnqueueAllFromDB(block bool) {
-    var pckgs []Package
-    t.indx.db.Find(&pckgs)
-	for _, p := range(pckgs) {
-		if t.MatchesCriterias(p) && !t.indx.CheckDownloaded(p) {
-			if (!t.enqueue(p,block)) {
-				return 
-			}
-			if t.CheckQuit() {
-				log.Print("quitting enqueueall")
-				return
-			}
-			log.Print(p)
-			log.Print("added one")
-		}
-	}
-}
+
 
 func (t *Task) enqueue(p Package, block bool) bool {
 	if block {

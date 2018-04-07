@@ -1,6 +1,7 @@
 package main
 import "time"
 import "log"
+import "path/filepath"
 import "strings"
 import "strconv"
 import "regexp"
@@ -19,6 +20,7 @@ type Indexer struct {
     db *gorm.DB
     connPool *ConnectionPool
 	imdb *IMDB
+	pckgChs [] (chan Package)
 	announcementCh chan PrivMsg
 }
 
@@ -70,6 +72,37 @@ func (i *Indexer) releaseDownloaded(r *Release) bool {
 		res, err := i.db.Table("releases").Select("*").Joins("left join downloadeds on releases.id = downloadeds.release_id").Where(r).Where("downloadeds.id > -1").Limit(1).Rows()	
 		defer res.Close()
 		return (err == nil) && (res.Next())
+
+}
+
+func (i *Indexer) ResetDownloaded() bool {
+	tx := i.db.Begin()
+
+	tx.Exec("DELETE FROM downloadeds;")
+	for _,dir := range i.Conf.GetDirs() {
+		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", dir, err)
+				return err
+			}
+			if !info.IsDir() {
+				p := Package{Filename: info.Name()}
+				r := i.getReleaseForPackage(p)
+				rID := r.ID
+				d := Downloaded{Filename: p.Filename, Location: "", ReleaseID: rID}
+				tx.Create(&d)
+			}
+			fmt.Printf("visited file: %q\n", path)
+			return nil
+		})
+
+		if err != nil {
+		fmt.Printf("error walking the path %q: %v\n", dir, err)
+		}
+
+	}
+	err := tx.Commit()
+	return err != nil
 
 }
 
@@ -146,11 +179,15 @@ func (p *Package) TargetFolder() string {
 }
 
 func (i *Indexer) getReleaseForPackage(p Package) Release {
+	if p.Release.ID != 0 {
+		return p.Release
+	}
 	var release Release
 	for release.ID == 0 {
 		parsed := p.Parse()	
 		i.db.Where(&parsed).First(&release)
 		if release.ID == 0 {
+			release.Release = parsed
 			i.EnrichWithIMDB(&release)
 			i.db.Save(&release)
 		}
@@ -158,10 +195,17 @@ func (i *Indexer) getReleaseForPackage(p Package) Release {
 	return release	
 }
 
+func (i *Indexer) AddNewPackageSubscription(ch chan Package) {
+	//i.pckgChs = append(i.pckgChs, ch)
+}
+
 func (i *Indexer) AddPackage(p Package) {
 	p.ReleaseID = i.getReleaseForPackage(p).ID
     if !i.UpdateIfExists(p) {
         i.db.Create(&p)
+		for _,ch := range i.pckgChs {
+			ch<-p
+		}
     }
 }
 

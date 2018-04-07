@@ -55,6 +55,10 @@ type IndexerEndpoints struct{
     *Indexer
 }
 
+func (ie *IndexerEndpoints) ResetDlDb(c *gin.Context) {
+	ie.ResetDownloaded()
+}
+
 func (ie *IndexerEndpoints) pkgQuery(c *gin.Context) {
     c.JSON(200,ie.Search("%" + strings.Replace(c.Param("query"), " ", "%", -1) + "%"))
 }
@@ -79,6 +83,15 @@ func (tm *TaskmgrEndpoints) Delete(c *gin.Context) {
 	}
 }
 
+func (tm *TaskmgrEndpoints) Create(c *gin.Context) {
+	var ti Taskinfo
+	c.BindJSON(&ti)
+	if !(ti.ID > 0) {
+		tm.CreateTask(&ti)
+	}
+	tm.All(c)
+}
+
 func (tm *TaskmgrEndpoints) Update(c *gin.Context) {
     if i, err := strconv.Atoi(c.Params.ByName("id")); err == nil {	
 		var ti Taskinfo
@@ -86,7 +99,13 @@ func (tm *TaskmgrEndpoints) Update(c *gin.Context) {
 		if ti.ID != uint(i) {
 			panic("ids dont match")
 		}
-		tm.UpdateTask(&ti)
+		err,_ := ParseToPE(ti.Criteria)
+		if err != nil {
+			c.JSON(500, "")
+			return
+		} else {
+			tm.UpdateTask(&ti)
+		}
 
 	}
 }

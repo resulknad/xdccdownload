@@ -205,6 +205,7 @@ func (i *IRC) Connect() bool {
     go i.BanListener(banChan)
     i.SubscriptionCh<-CodeSubscription{Once: false, Backchannel: banChan, Code: "474"}
     // conenct to server
+	log.Print("Connecting to " + i.Server)
     conn, err := net.Dial("tcp", i.Server)
     if err != nil {
         log.Print(err)

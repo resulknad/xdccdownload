@@ -152,6 +152,38 @@ func (e Predicate) String() string {
 
 // Parsing
 
+type ParsedExpression struct {
+	e *Expression
+}
+
+func ParseToPE(expr string) (err error, pe *ParsedExpression) {
+	pe = &ParsedExpression{}
+	
+	err = nil
+	defer func() {
+		if r:=recover(); r!=nil {
+			log.Print(r)
+			err = errors.New("Error occured during parsing/evaluation of " + expr + ": ")
+		}
+	}()
+	_,e := ParseExpr(Tokenizer(expr))
+	pe.e = e
+	return err, pe
+}
+
+func (pe *ParsedExpression) Eval(interpretation  map[string]interface{}) (err error, result bool) {
+	err = nil
+	defer func() {
+		if r:=recover(); r!=nil {
+			log.Print(r)
+			err = errors.New("Error occured during evaluation of " )
+		}
+	}()
+
+	result = (*(pe.e)).Evaluate(interpretation)
+	return err, result
+}
+
 func ParseAndEval(expr string, interpretation map[string]interface{}) (result bool, err error) {
 	defer func() {
 		if r:=recover(); r!=nil {

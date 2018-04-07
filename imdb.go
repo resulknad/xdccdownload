@@ -1,5 +1,4 @@
-package main
-
+package main 
 import "net/http"
 import "compress/gzip"
 import "io"
@@ -27,19 +26,26 @@ type IMDB struct {
 	db *gorm.DB
 	tx *gorm.DB
 }
+/*
 
+    Server string `gorm:"index:pckg"`
+    Channel string `gorm:"index:pckg"`
+    Bot string `gorm:"index:pckg"`
+    Package string `gorm:"index:pckg"`
+	*/
 type TitleBasic struct {
 	gorm.Model
 	Tconst string `gorm:"index"`
-	TitleType string `gorm:"index"`
-	PrimaryTitle string `gorm:"index"`
+	TitleType string `gorm:"index:tt,mv,show"`
+	PrimaryTitle string `gorm:"index:pt,mv,show"`
 	OriginalTitle string
 	IsAdult string
-	StartYear int `gorm:"index"`
+	StartYear int `gorm:"index:sy,mv"`
 	EndYear int
 	RuntimeMinutes int
 	Genres string
 }
+
 
 type TitleRating struct {
 	gorm.Model
@@ -50,14 +56,24 @@ type TitleRating struct {
 
 func (i *IMDB) GetIdForMovie(title string, year int) string {
 	var movie TitleBasic
-	i.db.Where(TitleBasic{TitleType: "movie", PrimaryTitle: title, StartYear: year}).First(&movie)
-	return movie.Tconst
+	i.db.Where("title_type = ? AND primary_title = ? and start_year = ?", "movie", title, year).First(&movie)
+	//i.db.Where(TitleBasic{TitleType: "movie", PrimaryTitle: title, StartYear: year}).First(&movie)
+	if title != "" && movie.ID != 0 {
+		return movie.Tconst
+	} else {
+		return ""
+	}
 }
 
 func (i *IMDB) GetIdForShow(title string) string {
 	var movie TitleBasic
-	i.db.Where(TitleBasic{TitleType: "tvSeries", PrimaryTitle: title}).First(&movie)
-	return movie.Tconst
+	i.db.Where("title_type = ? AND primary_title = ?", "tvSeries", title).First(&movie)
+	//i.db.Where(TitleBasic{TitleType: "tvSeries", PrimaryTitle: title}).First(&movie)
+	if title != "" && movie.ID != 0 {
+		return movie.Tconst
+	} else {
+		return ""
+	}
 }
 
 func (i *IMDB) GetRating(id string) (float64, int) {
@@ -85,7 +101,7 @@ func (i *IMDB) UpdateData() (suc bool) {
 		}
 	}()
 	suc = true
-	// i.downloadData()
+	i.downloadData()
 	i.tx = i.db.Begin() // create transaction
 	i.tx.Exec("DELETE FROM title_ratings; DELETE FROM title_basics;") // delete everything
 
@@ -95,6 +111,7 @@ func (i *IMDB) UpdateData() (suc bool) {
 		suc = false
 	}
 	i.db.Exec("VACUUM;") // make sqlite actually delete stuff
+	log.Print("Done updating data")
 	return suc
 }
 
@@ -151,14 +168,16 @@ func handleTitleBasics(i *IMDB,vals []string) {
 		t := TitleBasic{}
 		t.Tconst = vals[0]
 		t.TitleType = vals[1]
-		t.PrimaryTitle = vals[2]
-		t.OriginalTitle = vals[3]
+		t.PrimaryTitle = cleanTitle(vals[2])
+		t.OriginalTitle = cleanTitle(vals[3])
 		t.IsAdult = vals[4]
 		t.StartYear = StartYear
 		t.EndYear = EndYear
 		t.RuntimeMinutes = RuntimeMinutes
 		t.Genres = vals[8]
-		i.tx.Create(&t)	
+		if t.TitleType == "movie" || t.TitleType == "tvSeries" {
+			i.tx.Create(&t)	
+		}
 	} else {
 		fmt.Print(vals)
 		panic("int parse error")
@@ -194,4 +213,14 @@ func (i *IMDB) readTSV(file string, handle func(*IMDB, []string)) {
 		}
 		handle(i, strings.Split(strings.Replace(scanner.Text(), "\\N", "", -1), "\t"))
 	}
+}
+
+
+// nned to export from releaseparser at some point
+func cleanTitle(name string) string {
+	name = strings.Replace(name, ".", " ", -1)
+	name = strings.Replace(name, "_", " ", -1)
+	name = strings.Replace(name, "-", " ", -1)
+	name = strings.Trim(name, " ")
+	return name
 }

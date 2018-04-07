@@ -1,7 +1,12 @@
 package main
 
 import "testing"
+import "runtime/pprof"
+import "os"
+import "log"
 import "fmt"
+import "github.com/elgs/gostrgen"
+
 func Indx() *Indexer {
 	connPool := ConnectionPool{}
 	chs := []ChannelConfig{ChannelConfig{Server:"irc.abjects.net:6667", Channel:"#aaaaasdf"}}
@@ -13,15 +18,23 @@ func Indx() *Indexer {
 }
 
 func BenchmarkAddPackage(b *testing.B) {
-    /*c := Config{}
-    c.LoadConfig()
-    indx := CreateIndexer(&c)
+	cpuprofile := "cpu.pprof"
+	if cpuprofile != "" {
+		f, err := os.Create(cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+    indx := Indx()
     b.ResetTimer()
     fmt.Println(b.N)
-    for n := 0; n < b.N; n++ {
-        indx.AddPackage(Package{Server:"SomeServer", Channel:"SomeChannel", Bot:"SomeBot", Package:"SomePackage"})
-    }*/
-    // 125s without index
+    for n := 0; n < b.N*1000; n++ {
+        str, _ := gostrgen.RandGen(15, gostrgen.Lower | gostrgen.Upper, "", "")
+		indx.AddPackage(Package{Filename: str, Server:"SomeServer", Channel:"SomeChannel", Bot:"SomeBot", Package:"SomePackage"})
+    }
+    // 60s without combined index
     // 25s with combined index
 }
 

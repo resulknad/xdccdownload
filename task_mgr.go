@@ -3,6 +3,7 @@ package main
 import "sync"
 import "log"
 import "fmt"
+import "time"
 import (
      "github.com/jinzhu/gorm"
      _"github.com/jinzhu/gorm/dialects/sqlite"
@@ -11,6 +12,7 @@ type Taskmgr struct {
 	sync.Mutex
 	indx *Indexer
 	dlm *DownloadManager
+	pckgCh chan Package
 	db *gorm.DB
 	tasks []*Task
 }
@@ -20,11 +22,36 @@ func CreateTaskmgr(indx *Indexer, dlm *DownloadManager) *Taskmgr {
 	t.indx = indx
 	t.db = indx.db
 
+
 	t.db.AutoMigrate(&Taskinfo{})
 	t.dlm = dlm
+
+	t.pckgCh = make(chan Package,100)
+	indx.AddNewPackageSubscription(t.pckgCh)
+	go t.PackageWorker()
+	go t.EnqueueAllFromDB()
 	return &t
 }
 
+func (tm *Taskmgr) PackageWorker() {
+	// newly added packages
+	for {
+		select {
+		case p:=<-tm.pckgCh:
+			tm.EnqueueAll(p)
+		}
+	}
+}
+
+func (tm *Taskmgr) EnqueueAll(p Package) {
+	for _,tl := range(tm.tasks) {
+		if tl != nil {
+			if tl.MatchesCriterias(p) && !tm.indx.CheckDownloaded(p) {
+				go tl.enqueue(p, true)
+			}
+		}
+	}
+}
 func (tm *Taskmgr) QuitTask(t *Task) {
 	defer func() {
 		log.Print("QuitTask")
@@ -61,7 +88,22 @@ func (tm *Taskmgr) StartTask(t *Task) {
 	}
 
 	go t.Worker()
-	go t.EnqueueAllFromDB(true)
+}
+
+func (t *Taskmgr) EnqueueAllFromDB() {
+	for {
+		var pckgs []Package
+		// dirty trick, gorm cant preload if we dont page
+		for i:=0; (len(pckgs)>0 || i==0); i+=500 {
+			t.indx.db.Preload("Release").Offset(i).Limit(500).Find(&pckgs)
+			for _, p := range(pckgs) {
+				t.EnqueueAll(p)
+			}
+			time.Sleep(5*time.Second) // this process shouldnt put too much load on the system...
+		}
+		
+		log.Print("done with enqueue")
+	}
 }
 
 func (tm *Taskmgr) titot(ti *Taskinfo) *Task {
@@ -107,6 +149,7 @@ func (tm *Taskmgr) GetAllTasks() []*Task {
 	}
 	return ts
 }
+
 
 func (tm *Taskmgr) GetTask(id int) *Task {
 	var ti Taskinfo

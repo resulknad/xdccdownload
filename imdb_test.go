@@ -3,6 +3,7 @@ package main
 import "testing"
 import "os"
 import "path"
+import "fmt"
 
 func CIMDB() *IMDB {
 	c := (Config{})
@@ -33,7 +34,13 @@ func TestUpdateIMDB(t *testing.T) {
 }
 
 func TestIMDBAccuracy(t *testing.T) {
+
 	i := CIMDB()
+	idd := i.GetIdForMovie("", 0)
+	fmt.Println(idd)
+	if idd != "" {
+		t.FailNow()
+	}
 	rating, num := i.GetRating(i.GetIdForMovie("Interstellar", 2014))
 	if rating < 8 || num <100 {
 		t.FailNow()
