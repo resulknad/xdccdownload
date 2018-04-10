@@ -101,6 +101,7 @@ func (t *Taskmgr) EnqueueAllFromDB() {
 			}
 			time.Sleep(5*time.Second) // this process shouldnt put too much load on the system...
 		}
+		time.Sleep(60*time.Second) // this process shouldnt put too much load on the system...
 		
 		log.Print("done with enqueue")
 	}
