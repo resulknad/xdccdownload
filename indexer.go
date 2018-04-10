@@ -76,9 +76,9 @@ func (i *Indexer) releaseDownloaded(r *Release) bool {
 }
 
 func (i *Indexer) ResetDownloaded() bool {
-	tx := i.db.Begin()
+	// tx := i.db.Begin()
 
-	tx.Exec("DELETE FROM downloadeds;")
+	// tx.Exec("DELETE FROM downloadeds;")
 	for _,dir := range i.Conf.GetDirs() {
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -90,7 +90,7 @@ func (i *Indexer) ResetDownloaded() bool {
 				r := i.getReleaseForPackage(p)
 				rID := r.ID
 				d := Downloaded{Filename: p.Filename, Location: "", ReleaseID: rID}
-				tx.Create(&d)
+				i.db.Create(&d)
 			}
 			fmt.Printf("visited file: %q\n", path)
 			return nil
@@ -101,9 +101,9 @@ func (i *Indexer) ResetDownloaded() bool {
 		}
 
 	}
-	err := tx.Commit()
-	return err != nil
-
+	//err := tx.Commit()
+	//return err != nil
+	return true
 }
 
 func (i *Indexer) CheckDownloaded(p Package) bool {
