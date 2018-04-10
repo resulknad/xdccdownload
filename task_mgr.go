@@ -24,6 +24,7 @@ func CreateTaskmgr(indx *Indexer, dlm *DownloadManager) *Taskmgr {
 
 
 	t.db.AutoMigrate(&Taskinfo{})
+	t.db.AutoMigrate(&TaskQueue{})
 	t.dlm = dlm
 
 	t.pckgCh = make(chan Package,100)
@@ -101,6 +102,7 @@ func (t *Taskmgr) EnqueueAllFromDB() {
 			}
 			time.Sleep(5*time.Second) // this process shouldnt put too much load on the system...
 		}
+		time.Sleep(60*time.Second) // this process shouldnt put too much load on the system...
 		
 		log.Print("done with enqueue")
 	}

@@ -11,7 +11,6 @@ import "github.com/elgs/gostrgen"
 import "sync"
 import "log"
 //import "os"
-
 //import "io"
 
 type IRC struct {

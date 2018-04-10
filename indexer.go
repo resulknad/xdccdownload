@@ -196,7 +196,7 @@ func (i *Indexer) getReleaseForPackage(p Package) Release {
 }
 
 func (i *Indexer) AddNewPackageSubscription(ch chan Package) {
-	//i.pckgChs = append(i.pckgChs, ch)
+	i.pckgChs = append(i.pckgChs, ch)
 }
 
 func (i *Indexer) AddPackage(p Package) {

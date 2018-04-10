@@ -14,6 +14,7 @@ type Taskinfo struct {
 	Criteria string
 	Enabled bool
 }
+
 type Task struct {
 	Taskinfo
 	State int
@@ -25,6 +26,12 @@ type Task struct {
 }
 
 
+type TaskQueue struct {
+	gorm.Model
+	TaskinfoID uint
+	PackageID uint
+	Package Package `gorm:"foreignkey:PackageID"`
+}
 
 func (t* Task) Init(indx *Indexer, dlm *DownloadManager) {
 	t.State = 1
@@ -64,60 +71,76 @@ func (t *Task) MatchesCriterias(p Package) bool {
 
 
 func (t *Task) enqueue(p Package, block bool) bool {
-	if block {
-		t.queue<-p
-		return true
-	}
-	select {
-	case t.queue<-p:
-		return true
-	default:
-		return false
-	}
+	t.indx.db.FirstOrCreate(&TaskQueue{PackageID:p.ID,TaskinfoID:t.ID})
+	return true
 }
 
 func (t *Task) CheckQuit() bool {
 	select {
-	case <-t.quit:
-		return true
-	default:
-		return false
+		case <-t.quit:
+			return true
+		default:
+			return false
 	}
+}
+
+func (t *Task) PullFromQueue() (bool, *TaskQueue) {
+	var q TaskQueue
+	tx := t.indx.db.Begin()
+	tx.Preload("Package").First(&q)
+	if q.ID == 0 {
+		tx.Commit()
+		return false, nil
+	}
+
+	tx.Delete(&q)
+	tx.Commit()
+	return true, &q
 }
 
 func (t *Task) Worker() {
 	
 	t.State = 2
 	for {
-		select {
-		case p:=<-t.queue:
-			if t.indx.CheckDownloaded(p) {
-				continue
-			}
-			dlId := t.dlm.CreateDownload(Download{Pack: p, Targetfolder:p.TargetFolder()})
-			i, dl := t.dlm.GetDownload(dlId)
-			log.Print("Issued DL ")
-			for i != -1 && dl.State == 0 { // wait while DL in progress
-				time.Sleep(1*time.Second)
-				i, dl = t.dlm.GetDownload(dlId)
-				log.Print("loop")
-				if t.CheckQuit() {
-					t.State = 0
-					log.Print("Quitting task")
-					return
-				}
-			}
-			if dl.State == -1 {
-				t.indx.RemovePackage(&p)
-				log.Print("Deleted package bc of failure to dl")
-			} else {
-				t.indx.AddDownloaded(p)
-			}
-			log.Print("Done")
-		case <-t.quit:
+		if t.CheckQuit() {
 			t.State = 0
-			log.Print("Quit task")
+			log.Print("Quitting task")
 			return
 		}
+
+		avail, q := t.PullFromQueue()
+
+		if !avail {
+			time.Sleep(5*time.Second)
+			continue
+		}
+		p := q.Package
+
+		if t.indx.CheckDownloaded(p) {
+			continue
+		}
+		dlId := t.dlm.CreateDownload(Download{Pack: p, Targetfolder:p.TargetFolder()})
+		i, dl := t.dlm.GetDownload(dlId)
+		log.Print("Issued DL ")
+
+		for i != -1 && dl.State == 0 { // wait while DL in progress
+			time.Sleep(1*time.Second)
+			i, dl = t.dlm.GetDownload(dlId)
+			log.Print("loop")
+			if t.CheckQuit() {
+				t.State = 0
+				log.Print("Quitting task")
+				return
+			}
+		}
+		if dl.State == -1 {
+			t.indx.RemovePackage(&p)
+			log.Print("Deleted package bc of failure to dl")
+		} else {
+			t.indx.AddDownloaded(p)
+		}
+		log.Print("Done")
+
+
 	}
 }
