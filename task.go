@@ -71,7 +71,7 @@ func (t *Task) MatchesCriterias(p Package) bool {
 
 
 func (t *Task) enqueue(p Package, block bool) bool {
-	t.indx.db.FirstOrCreate(&TaskQueue{PackageID:p.ID,TaskinfoID:t.ID})
+	t.indx.db.Create(&TaskQueue{PackageID:p.ID,TaskinfoID:t.ID})
 	return true
 }
 
@@ -87,9 +87,10 @@ func (t *Task) CheckQuit() bool {
 func (t *Task) PullFromQueue() (bool, *TaskQueue) {
 	var q TaskQueue
 	tx := t.indx.db.Begin()
-	tx.Preload("Package").First(&q)
+	tx.Preload("Package").Where("taskinfo_id = ?", t.ID).First(&q)
 	if q.ID == 0 {
 		tx.Commit()
+		log.Print("none found")
 		return false, nil
 	}
 
@@ -111,7 +112,7 @@ func (t *Task) Worker() {
 		avail, q := t.PullFromQueue()
 
 		if !avail {
-			time.Sleep(5*time.Second)
+			time.Sleep(1*time.Second)
 			continue
 		}
 		p := q.Package

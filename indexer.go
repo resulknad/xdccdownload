@@ -204,7 +204,10 @@ func (i *Indexer) AddPackage(p Package) {
     if !i.UpdateIfExists(p) {
         i.db.Create(&p)
 		for _,ch := range i.pckgChs {
-			ch<-p
+			select {
+				case ch<-p:
+				default:
+			}
 		}
     }
 }

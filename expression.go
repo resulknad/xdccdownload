@@ -164,6 +164,7 @@ func ParseToPE(expr string) (err error, pe *ParsedExpression) {
 		if r:=recover(); r!=nil {
 			log.Print(r)
 			err = errors.New("Error occured during parsing/evaluation of " + expr + ": ")
+			log.Print(err)
 		}
 	}()
 	_,e := ParseExpr(Tokenizer(expr))
@@ -177,6 +178,7 @@ func (pe *ParsedExpression) Eval(interpretation  map[string]interface{}) (err er
 		if r:=recover(); r!=nil {
 			log.Print(r)
 			err = errors.New("Error occured during evaluation of " )
+			log.Print(err)
 		}
 	}()
 
@@ -189,6 +191,7 @@ func ParseAndEval(expr string, interpretation map[string]interface{}) (result bo
 		if r:=recover(); r!=nil {
 			log.Print(r)
 			err = errors.New("Error occured during parsing/evaluation of " + expr + ": ")
+			log.Print(err)
 		}
 	}()
 	_,e := ParseExpr(Tokenizer(expr))

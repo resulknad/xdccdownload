@@ -148,7 +148,7 @@ func (dm *DownloadManager) CreateDownload(d Download) string {
 	d.ID,_ = gostrgen.RandGen(15, gostrgen.Lower | gostrgen.Upper, "", "")
 	d.State = 0
     d.Percentage = 0.0
-	d.Quit = make(chan bool, 1)
+	d.Quit = make(chan bool, 10)
     dm.List = append(dm.List, &d)
     dm.downloadCh<-&d
 	return d.ID
