@@ -36,7 +36,7 @@ func TestCheckChannels(t *testing.T) {
 // test if our ping (StillConnected) works
 func TestConnCheck(t *testing.T) {
 	connPool := ConnectionPool{}
-	chs := []ChannelConfig{ChannelConfig{Server:"irc.abjects.net:6667", Channel:"#aaaaasdf"}}
+	chs := []ChannelConfig{ChannelConfig{Server:"irc.abjects.net:6667", Channel:"#beast-xdcc"}}
 	c := (Config{})
 	c.Channels = chs
 

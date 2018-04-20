@@ -23,9 +23,9 @@ func CTask() *Task {
 
 func TestEnqueueAll(t *testing.T) {
 	return
-	task := CTask()	
-	go task.EnqueueAllFromDB(true)
-	task.Worker()
+	// task := CTask()	
+	// go task.EnqueueAllFromDB(true)
+	// task.Worker()
 	// todo test smth
 }
 

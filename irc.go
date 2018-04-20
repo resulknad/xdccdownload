@@ -240,7 +240,7 @@ func (i *IRC) StillConnected() bool {
 	select {
 	case <-pongAwait:
 		return true
-	case <-time.After(2*time.Second):
+	case <-time.After(4*time.Second):
 		return false
 	}
 	return true
