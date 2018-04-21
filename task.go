@@ -71,6 +71,10 @@ func (t *Task) MatchesCriterias(p Package) bool {
 
 
 func (t *Task) enqueue(p Package, block bool) bool {
+	if ! (p.ID > 0) {
+		return false
+	}
+
 	t.indx.db.Create(&TaskQueue{PackageID:p.ID,TaskinfoID:t.ID})
 	return true
 }
@@ -90,7 +94,6 @@ func (t *Task) PullFromQueue() (bool, *TaskQueue) {
 	tx.Preload("Package").Where("taskinfo_id = ?", t.ID).First(&q)
 	if q.ID == 0 {
 		tx.Commit()
-		log.Print("none found")
 		return false, nil
 	}
 

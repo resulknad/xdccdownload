@@ -92,7 +92,12 @@ func (f PrivMsgSubscription) Evaluate(msg string, i *IRC) bool {
     if (privmsgRegexp.MatchString(msg) &&
         strings.Contains(privmsgRegexp.FindStringSubmatch(msg)[1], f.To)) {
             //fmt.Println("rule struck: %s, msg: %s, channel:%s", f.To, msg, i.Channel)
-            f.Backchannel <- PrivMsg{Content: privmsgRegexp.FindStringSubmatch(msg)[2], From: receiverRegexp.FindStringSubmatch(msg)[1], Server: i.Server, Channel: i.Channel, To: privmsgRegexp.FindStringSubmatch(msg)[1]}
+select {
+case            f.Backchannel <- PrivMsg{Content: privmsgRegexp.FindStringSubmatch(msg)[2], From: receiverRegexp.FindStringSubmatch(msg)[1], Server: i.Server, Channel: i.Channel, To: privmsgRegexp.FindStringSubmatch(msg)[1]}:
+default:
+log.Print("privmsg backchannel full " + f.To)
+}
+
         return true
     }
     return false
@@ -130,7 +135,11 @@ func (f GeneralSubscription) Evaluate(msg string, i *IRC) bool {
 	msg = removePrefix(msg)
     if (strings.HasPrefix(msg, f.Filter)) {
         //fmt.Println("rule struck: %s, msg: %s", f.Filter, msg)
-        f.Backchannel <- msg
+	select {
+        case f.Backchannel <- msg:
+default:
+log.Print("general backchannel full " + f.Filter)
+}
         return true
     }
     return false
@@ -151,7 +160,11 @@ func (f CodeSubscription) Evaluate(msg string, i *IRC) bool {
     if codeRegexp.MatchString(msg) &&
         codeRegexp.FindStringSubmatch(msg)[1] == f.Code {
         //fmt.Println("rule struck: %s, msg: %s", f.Filter, msg)
-	        f.Backchannel <- removeWholePrefix(msg)
+select {
+case	        f.Backchannel <- removeWholePrefix(msg):
+default:
+log.Print("code backchannel full " + f.Code)
+}
         return true
     }
     return false
@@ -240,7 +253,7 @@ func (i *IRC) StillConnected() bool {
 	select {
 	case <-pongAwait:
 		return true
-	case <-time.After(4*time.Second):
+	case <-time.After(5*time.Second):
 		return false
 	}
 	return true

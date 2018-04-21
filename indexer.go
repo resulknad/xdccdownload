@@ -217,7 +217,7 @@ func (i *Indexer) UpdateIfExists(p Package) bool {
     i.db.Where("Server = ? AND Bot=? AND Package=? AND Channel=?", p.Server, p.Bot, p.Package, p.Channel).First(&pDb)
     if pDb.ID > 0  { // gorms wants this
         if pDb.Filename != p.Filename {
-            i.db.Model(&pDb).Updates(Package{Filename: p.Filename, Size: p.Size, Gets: p.Gets, Time: time.Now().Format(time.RFC850)})
+            i.db.Model(&pDb).Updates(Package{Filename: p.Filename, ReleaseID:p.ReleaseID, Size: p.Size, Gets: p.Gets, Time: time.Now().Format(time.RFC850)})
         }
         return true
     }
@@ -308,7 +308,9 @@ func CreateIndexer(c *Config, connPool *ConnectionPool) *Indexer {
 		}
     }
 
-    go indx.WaitForPackages(indx.announcementCh)
+	for i :=0; i<1; i++ {
+	    go indx.WaitForPackages(indx.announcementCh)
+	}
 
     return &indx
 }
