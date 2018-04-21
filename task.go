@@ -99,6 +99,10 @@ func (t *Task) PullFromQueue() (bool, *TaskQueue) {
 
 	tx.Delete(&q)
 	tx.Commit()
+
+	if q.Package.Filename == "" { // package might have been deleted at some point
+		return false, nil
+	}
 	return true, &q
 }
 
