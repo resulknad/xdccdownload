@@ -131,9 +131,13 @@ func (dm *DownloadManager) DownloadWorker() {
 		}
 		d.Messages += "Unpacking..."
 		u := Unpack{dm.Conf.TempPath, path.Join(dm.Conf.GetTargetDir(p.Parse().Type), d.Targetfolder), filePath}
-		u.Do()
-		d.State = 1
-		d.Messages += "done"
+		if u.Do() {
+			d.State = 1
+			d.Messages += "done"
+		} else {
+			d.State = -1
+			d.Messages += "Error unpacking"
+		}
 	}
 }
 }

@@ -40,9 +40,17 @@ func (u *Unpack) DesiredFile(filePath string) bool {
         return false
 }
 
-func (u *Unpack) Do() {
+func (u *Unpack) Do() (suc bool) {
+	suc = false
+    defer func() {
+        if r := recover(); r != nil {
+            fmt.Println("Recovered in f", r)
+        }
+    }()
     u.Process(u.InitialPath, nil, nil)
     os.Remove(u.InitialPath)
+    suc = true
+	return
 }
 
 func (u *Unpack) Process(filePath string, info os.FileInfo, err error) error {
