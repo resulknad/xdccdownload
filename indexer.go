@@ -70,7 +70,9 @@ func (i *Indexer) CheckDownloadedExact(p Package) bool {
 
 func (i *Indexer) releaseDownloaded(r *Release) bool {
 		res, err := i.db.Table("releases").Select("*").Joins("left join downloadeds on releases.id = downloadeds.release_id").Where(r).Where("downloadeds.id > -1").Limit(1).Rows()	
+		//if err == nil {
 		defer res.Close()
+		//}
 		return (err == nil) && (res.Next())
 
 }
@@ -252,6 +254,7 @@ func (i *Indexer) SetupDB() {
     panic("failed to connect database")
   }
   i.db = db
+  i.db.Exec("PRAGMA journal_mode=WAL;")
   db.AutoMigrate(&Package{})
   db.AutoMigrate(&Release{})
   db.AutoMigrate(&Downloaded{})
@@ -308,7 +311,7 @@ func CreateIndexer(c *Config, connPool *ConnectionPool) *Indexer {
 		}
     }
 
-	for i :=0; i<1; i++ {
+	for i :=0; i<10; i++ {
 	    go indx.WaitForPackages(indx.announcementCh)
 	}
 

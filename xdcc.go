@@ -2,9 +2,10 @@ package main
 
 import "net/url"
 import "path"
-import "net"
+//import "net"
 import "fmt"
 import "time"
+import "golang.org/x/net/proxy" 
 
 import "regexp"
 import "os"
@@ -121,7 +122,12 @@ func (i *XDCC) Download(prog chan XDCCDownloadMessage, tempdir string) bool {
 
     	offer := i.ParseSend(feedback)
 
-	conn, err := net.Dial("tcp", offer.IP+":"+offer.Port)
+	proxyDial, err := proxy.SOCKS5("tcp", "127.0.0.1:1080", nil, proxy.Direct)
+	if err != nil {
+		panic(err)
+	}
+	log.Print("using proxy...")
+	conn, err := proxyDial.Dial("tcp", offer.IP+":"+offer.Port)
 
 	if err != nil {
         prog<- XDCCDownloadMessage{Err: string(err.Error())}

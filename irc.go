@@ -10,6 +10,7 @@ import "regexp"
 import "github.com/elgs/gostrgen"
 import "sync"
 import "log"
+import "golang.org/x/net/proxy" 
 //import "os"
 //import "io"
 
@@ -218,7 +219,12 @@ func (i *IRC) Connect() bool {
     i.SubscriptionCh<-CodeSubscription{Once: false, Backchannel: banChan, Code: "474"}
     // conenct to server
 	log.Print("Connecting to " + i.Server)
-    conn, err := net.Dial("tcp", i.Server)
+	proxyDial, err := proxy.SOCKS5("tcp", "127.0.0.1:1080", nil, proxy.Direct)
+	if err != nil {
+		panic(err)
+	}
+	log.Print("using proxy...")
+    conn, err := proxyDial.Dial("tcp", i.Server)
     if err != nil {
         log.Print(err)
         return false
