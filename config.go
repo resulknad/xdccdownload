@@ -6,6 +6,7 @@ import (
     "os"
     "path"
     "fmt"
+	"golang.org/x/net/proxy" 
 )
 
 type ChannelConfig struct {
@@ -26,6 +27,7 @@ type ConfigStruct struct {
 	SpeedLimit int
 	ParallelDownloads int
 	LogDir string
+	Proxy string
 }
 
 type Config struct {
@@ -39,6 +41,17 @@ func (c *Config) GetTargetDir(pType string) string {
 		}
 	}
 	return c.TargetPaths[0].Dir
+}
+
+func (c *Config) GetProxyDial() *proxy.Dialer {
+	if c.Proxy == "" {
+		return nil
+	}
+	proxyDial, err := proxy.SOCKS5("tcp", c.Proxy, nil, proxy.Direct)
+	if err != nil {
+		return nil
+	}
+	return &proxyDial
 }
 
 func (c *Config) GetDirs() []string {

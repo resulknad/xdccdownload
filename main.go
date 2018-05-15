@@ -5,11 +5,17 @@ import "github.com/gin-contrib/cors"
 import "log"
 import "path"
 import "os"
+import "flag"
 
 func main() {
-    connPool := ConnectionPool{}
+
+	var printLog = flag.Int("printLog", 0, "print log to stdout")
+	flag.Parse()
+
     c := Config{}
     c.LoadConfig()
+
+	connPool := ConnectionPool{c: &c}
 	
 	logFile := path.Join(c.LogDir, time.Now().Format("20060102"))
 	if _, err := os.Stat(logFile); err == nil {
@@ -21,7 +27,10 @@ func main() {
 		log.Fatal(err)
 	}   
 	defer f.Close()
-	log.SetOutput(f)
+
+	if *printLog == 0 {
+		log.SetOutput(f)
+	}
 
     var indx *Indexer
     //for indx == nil {

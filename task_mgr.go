@@ -30,7 +30,7 @@ func CreateTaskmgr(indx *Indexer, dlm *DownloadManager) *Taskmgr {
 	t.pckgCh = make(chan Package,100)
 	indx.AddNewPackageSubscription(t.pckgCh)
 	go t.PackageWorker()
-	go t.EnqueueAllFromDB()
+	//go t.EnqueueAllFromDB()
 	return &t
 }
 
@@ -96,6 +96,7 @@ func (t *Taskmgr) EnqueueAllFromDB() {
 		var pckgs []Package
 		// dirty trick, gorm cant preload if we dont page
 		for i:=0; (len(pckgs)>0 || i==0); i+=500 {
+			log.Print("massive query")
 			t.indx.db.Preload("Release").Offset(i).Limit(500).Find(&pckgs)
 			for _, p := range(pckgs) {
 				t.EnqueueAll(p)

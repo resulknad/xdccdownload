@@ -10,6 +10,7 @@ type ConnectionBackoff struct {
 type ConnectionPool struct {
     connections []*IRC
 	backoff []ConnectionBackoff
+	c *Config
     sync.Mutex
 }
 
@@ -32,7 +33,8 @@ func (c *ConnectionPool) GetConnection(Server string) *IRC {
             return irc
         }
     }
-    irc := IRC{Server: Server}
+
+	irc := IRC{Server: Server, Proxy: c.c.GetProxyDial()}
     if irc.Connect() {
         c.connections = append(c.connections, &irc)
         return &irc
