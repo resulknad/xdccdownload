@@ -275,13 +275,13 @@ func (i *IRC) CheckChannel(channel string) bool {
 	c:=channel
 		// issue names command, which returns users in channel
 		// check if we are in this channel
-		namesCh := make(chan string, 10)
+		namesCh := make(chan string, 100)
 		namesSub := CodeSubscription{Once: false, Backchannel: namesCh, Code: "353", Quit: &SubscriptionQuit{}}
 		log.Print(namesSub.GetQuit())
 		namesSub.GetQuit().Init()
 		i.SubscriptionCh<-namesSub
 
-		endNamesCh := make(chan string, 10)
+		endNamesCh := make(chan string, 100)
 		endNamesSub := CodeSubscription{Once: true, Backchannel: endNamesCh, Code: "363", Quit: &SubscriptionQuit{}}
 		endNamesSub.GetQuit().Init()
 		i.SubscriptionCh<-endNamesSub
