@@ -8,6 +8,7 @@ import "regexp"
 import "os"
 import "path"
 import "fmt"
+import "math/rand"
 import (
      "github.com/jinzhu/gorm"
      _"github.com/jinzhu/gorm/dialects/sqlite"
@@ -218,7 +219,7 @@ func (i *Indexer) UpdateIfExists(p Package) bool {
     var pDb Package
     i.db.Where("Server = ? AND Bot=? AND Package=? AND Channel=?", p.Server, p.Bot, p.Package, p.Channel).First(&pDb)
     if pDb.ID > 0  { // gorms wants this
-        if pDb.Filename != p.Filename {
+        if pDb.Filename != p.Filename || rand.Intn(3) == 0 {
             i.db.Model(&pDb).Updates(Package{Filename: p.Filename, ReleaseID:p.ReleaseID, Size: p.Size, Gets: p.Gets, Time: time.Now().Format(time.RFC850)})
         }
         return true
