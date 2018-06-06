@@ -27,6 +27,7 @@ type ConfigStruct struct {
 	SpeedLimit int
 	ParallelDownloads int
 	LogDir string
+	DBPath string
 	Proxy string
 }
 

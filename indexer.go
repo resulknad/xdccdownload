@@ -219,7 +219,7 @@ func (i *Indexer) UpdateIfExists(p Package) bool {
     var pDb Package
     i.db.Where("Server = ? AND Bot=? AND Package=? AND Channel=?", p.Server, p.Bot, p.Package, p.Channel).First(&pDb)
     if pDb.ID > 0  { // gorms wants this
-        if pDb.Filename != p.Filename || rand.Intn(3) == 0 {
+        if pDb.Filename != p.Filename || rand.Intn(3) == 8 {
             i.db.Model(&pDb).Updates(Package{Filename: p.Filename, ReleaseID:p.ReleaseID, Size: p.Size, Gets: p.Gets, Time: time.Now().Format(time.RFC850)})
         }
         return true
@@ -249,7 +249,7 @@ func (i *Indexer) Search(name string) []Package {
 }
 
 func (i *Indexer) SetupDB() {
-  p := path.Join(os.Getenv("HOME"), ".indexer.db")
+  p := path.Join(i.Conf.DBPath, ".indexer.db")
   db, err := gorm.Open("sqlite3", p)
   if err != nil {
     panic("failed to connect database")

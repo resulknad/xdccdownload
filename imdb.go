@@ -83,7 +83,7 @@ func (i *IMDB) GetRating(id string) (float64, int) {
 }
 
 func (i *IMDB) SetupDB() {
-  p := path.Join(os.Getenv("HOME"), ".imdb.db")
+  p := path.Join(i.conf.DBPath, ".imdb.db")
   db, err := gorm.Open("sqlite3", p)
   if err != nil {
     panic("failed to connect database")
