@@ -5,7 +5,6 @@ package main
 import "github.com/gin-gonic/gin"
 //import "container/list"
 import "strconv"
-import "strings"
 
 
 type DownloadManagerRestAPI struct {
@@ -60,9 +59,10 @@ func (ie *IndexerEndpoints) ResetDlDb(c *gin.Context) {
 }
 
 func (ie *IndexerEndpoints) pkgQuery(c *gin.Context) {
-    c.JSON(200,ie.Search("%" + strings.Replace(c.Param("query"), " ", "%", -1) + "%"))
+    c.JSON(200,ie.Search(c.Param("query")))
 }
 
+/*
 type TaskmgrEndpoints struct {
     *Taskmgr
 }
@@ -109,3 +109,4 @@ func (tm *TaskmgrEndpoints) Update(c *gin.Context) {
 
 	}
 }
+*/

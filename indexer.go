@@ -2,23 +2,23 @@ package main
 import "time"
 import "log"
 import "path/filepath"
+import "encoding/json"
 import "strings"
+import "bytes"
 import "strconv"
 import "regexp"
 import "os"
 import "path"
 import "fmt"
-import "math/rand"
 import (
-     "github.com/jinzhu/gorm"
-     _"github.com/jinzhu/gorm/dialects/sqlite"
-	 "github.com/cytec/releaseparser"
+  	"github.com/boltdb/bolt"
+	"github.com/cytec/releaseparser"
 )
 
 
 type Indexer struct {
     Conf *Config
-    db *gorm.DB
+    db *bolt.DB
     connPool *ConnectionPool
 	imdb *IMDB
 	pckgChs [] (chan Package)
@@ -26,17 +26,15 @@ type Indexer struct {
 }
 
 type Package struct {
-    gorm.Model
-    Server string `gorm:"index:pckg"`
-    Channel string `gorm:"index:pckg"`
-    Bot string `gorm:"index:pckg"`
-    Package string `gorm:"index:pckg"`
+    Server string
+    Channel string
+    Bot string
+    Package string
     Filename string
     Size string
     Gets string
     Time string
-	ReleaseID uint
-	Release Release  `gorm:"foreignkey:ReleaseID"` 
+	Release Release
 }
 
 type Release struct {
@@ -44,39 +42,46 @@ type Release struct {
 	AvgRating float64
 	NumVotes int
 	releaseparser.Release
-	gorm.Model
 }
 
 type Downloaded struct {
-	gorm.Model
 	Filename string
 	Location string
 	ReleaseID uint
 }
 
-func (i *Indexer) AddDownloaded(p Package) {
-	r := i.getReleaseForPackage(p)
-	rID := r.ID
-
-	d := Downloaded{Filename: p.Filename, Location: "", ReleaseID: rID}
-    i.db.Create(&d)
+func (i *Indexer) AddDownloaded(r Release) {
+  err := i.db.Update(func(tx *bolt.Tx) error {
+	dBucket := tx.Bucket([]byte("downloaded"))
+	dBucket.Put([]byte(r.key()), []byte(r.json()))
+	return nil
+  })
+  if err != nil {
+	panic(err)
+  }
 }
 
 func (i *Indexer) CheckDownloadedExact(p Package) bool {
-	//i.db.LogMode(true)
-	r := i.getReleaseForPackage(p)//p.Parse() 
-	r.ID =	0 
-	return i.releaseDownloaded(&r)
+  panic("not implemented")
+  return false
 }
 
-func (i *Indexer) releaseDownloaded(r *Release) bool {
-		res, err := i.db.Table("releases").Select("*").Joins("left join downloadeds on releases.id = downloadeds.release_id").Where(r).Where("downloadeds.id > -1").Limit(1).Rows()	
-		//if err == nil {
-		defer res.Close()
-		//}
-		return (err == nil) && (res.Next())
-
+func (i *Indexer) releaseDownloaded(r *Release) (downloaded bool) {
+  err := i.db.Update(func(tx *bolt.Tx) error {
+	dBucket := tx.Bucket([]byte("downloaded"))
+	if dBucket.Get([]byte(r.key())) != nil {
+	  downloaded = true
+	} else {
+	  downloaded = false
+	}
+	return nil
+  })
+  if err != nil {
+	panic(err)
+  }
+  return downloaded
 }
+
 
 func (i *Indexer) ResetDownloaded() bool {
 	// tx := i.db.Begin()
@@ -89,11 +94,9 @@ func (i *Indexer) ResetDownloaded() bool {
 				return err
 			}
 			if !info.IsDir() {
-				p := Package{Filename: info.Name()}
-				r := i.getReleaseForPackage(p)
-				rID := r.ID
-				d := Downloaded{Filename: p.Filename, Location: "", ReleaseID: rID}
-				i.db.Create(&d)
+			  p := Package{Filename: info.Name()}
+			  r := p.Parse()
+			  i.AddDownloaded(r)
 			}
 			fmt.Printf("visited file: %q\n", path)
 			return nil
@@ -136,6 +139,7 @@ func (i *Indexer) EnrichWithIMDB(r *Release) {
 }
 
 func (i *Indexer) EnrichAll() { 
+  /*
     var rs []Release
 	tx := i.db.Begin()
 	i.db.Where(Release{IMDBId:""}).Find(&rs)
@@ -145,10 +149,11 @@ func (i *Indexer) EnrichAll() {
 		log.Print(r)
 	}
 	tx.Commit()
+	*/
 }
 
-func (p *Package) Parse() releaseparser.Release {
-	return *releaseparser.Parse(p.Filename)
+func (p Package) Parse() Release {
+	return Release{Release: *releaseparser.Parse(p.Filename)}
 }
 
 func (p *Package) SizeMbytes() float64 {
@@ -181,21 +186,43 @@ func (p *Package) TargetFolder() string {
 	} 
 }
 
-func (i *Indexer) getReleaseForPackage(p Package) Release {
-	if p.Release.ID != 0 {
-		return p.Release
-	}
-	var release Release
-	for release.ID == 0 {
-		parsed := p.Parse()	
-		i.db.Where(&parsed).First(&release)
-		if release.ID == 0 {
-			release.Release = parsed
-			i.EnrichWithIMDB(&release)
-			i.db.Save(&release)
+func PackageFromJSON(b []byte) Package {
+  var r Package
+  err := json.Unmarshal(b, &r)
+  if err != nil {
+	panic(err)
+  }
+  return r
+}
+
+func ReleaseFromJSON(b []byte) Release {
+  var r Release
+  err := json.Unmarshal(b, &r)
+  if err != nil {
+	panic("couldnt parse json")
+  }
+  return r
+}
+
+func (i *Indexer) getReleaseForPackage(p Package) (release Release) {
+	if p.Release.Type == "" {
+	  err := i.db.View(func(tx *bolt.Tx) error {
+		rBucket := tx.Bucket([]byte("releases"))
+		if r := rBucket.Get([]byte(p.Filename)); r != nil {
+		  release = ReleaseFromJSON(r)
+		} else {
+		  release = p.Parse()
 		}
+		return nil
+	  })
+	  if err != nil {
+		panic(err)
+	  }
+	} else {
+	  release = p.Release
 	}
-	return release	
+
+	return release
 }
 
 func (i *Indexer) AddNewPackageSubscription(ch chan Package) {
@@ -203,62 +230,183 @@ func (i *Indexer) AddNewPackageSubscription(ch chan Package) {
 }
 
 func (i *Indexer) AddPackage(p Package) {
-	p.ReleaseID = i.getReleaseForPackage(p).ID
+
     if !i.UpdateIfExists(p) {
-        i.db.Create(&p)
-		for _,ch := range i.pckgChs {
-			select {
-				case ch<-p:
-				default:
-			}
-		}
-    }
+	  // p.Release = i.getReleaseForPackage(p)
+	  for _,ch := range i.pckgChs {
+		  select {
+			  case ch<-p:
+			  default:
+		  }
+	  }
+  }
 }
 
-func (i *Indexer) UpdateIfExists(p Package) bool {
-    var pDb Package
-    i.db.Where("Server = ? AND Bot=? AND Package=? AND Channel=?", p.Server, p.Bot, p.Package, p.Channel).First(&pDb)
-    if pDb.ID > 0  { // gorms wants this
-        if pDb.Filename != p.Filename || rand.Intn(3) == 8 {
-            i.db.Model(&pDb).Updates(Package{Filename: p.Filename, ReleaseID:p.ReleaseID, Size: p.Size, Gets: p.Gets, Time: time.Now().Format(time.RFC850)})
-        }
-        return true
-    }
-    return false
+func (p Release) key() string {
+  var s string
+  fmt.Sprintf("%s:%d:%s:%d:%d", p.Type, p.Year,p.Title, p.Season, p.Episode)
+  return s
 }
 
-func (i *Indexer) GetPackage(id int) (bool, Package) {
+func (p Package) key() string {
+  return p.Server + ":" + p.Channel + ":" + p.Bot + ":" + p.Package
+}
+
+func (p Release) json() []byte {
+  b, err := json.Marshal(p)
+  if err == nil {
+	return b
+  } else {
+	return []byte("")
+  }
+}
+func (p Package) json() []byte {
+  b, err := json.Marshal(p)
+  if err == nil {
+	return b
+  } else {
+	return []byte("")
+  }
+}
+
+func (i *Indexer) UpdateIfExists(p Package) (didupdate bool) {
+	err := i.db.Update(func(tx *bolt.Tx) error {
+	  pBucket := tx.Bucket([]byte("packages"))
+	  rBucket := tx.Bucket([]byte("releases"))
+	  if pBucket.Get([]byte(p.key())) != nil {
+		didupdate = true
+	  } else {
+		didupdate = false
+	  }
+
+	  if release := rBucket.Get([]byte(p.Filename)); release != nil {
+		p.Release = ReleaseFromJSON(release)
+	  } else {
+		p.Release = p.Parse()
+		rBucket.Put([]byte(p.Filename), p.Release.json())
+	  }
+	  
+	  pBucket.Put([]byte(p.key()), p.json())
+	  i.addToSearchIndex(tx, p) 
+
+	  return nil
+	})
+
+	if err != nil {
+	  panic(err)
+	}
+	return didupdate
+}
+
+/*func (i *Indexer) GetPackage(id int) (bool, Package) {
     var pack Package
     i.db.First(&pack, id)
     return true, pack
+}*/
+
+func (i *Indexer) addToSearchIndex(tx *bolt.Tx, p Package) {
+  words := strings.Split(strings.ToLower(p.Filename), ".")
+  sBucket := tx.Bucket([]byte("packages_search"))
+
+  for _,w := range words {
+	if ids := sBucket.Get([]byte(w)); ids != nil {
+	  sBucket.Put([]byte(w), []byte(string(ids) + p.key() + ","))
+	} else {
+	  sBucket.Put([]byte(w), []byte(p.key() + ","))
+	}
+  }
 }
+
 func (i *Indexer) RemovePackage(p *Package) {
-    i.db.Delete(p) // cleanup
+  err := i.db.Update(func(tx *bolt.Tx) error {
+	tx.Bucket([]byte("packages")).Delete([]byte(p.key()))
+	return nil
+  })
+  if err != nil {
+	panic(err)
+  }
 }
 
 func (i *Indexer) Search(name string) []Package {
-    i.db.Unscoped().Delete(Package{}, "updated_at < date('now', '-1 day')") // cleanup
-    var pckgs []Package
-    i.db.Where("Filename LIKE ?", name).Limit(200).Preload("Release").Find(&pckgs)
-	/*for indx, _ := range(pckgs) {
-		// enrich with parsed release info
-		pckgs[indx].Parsed = i.getReleaseForPackage(pckgs[indx])
-	}*/
-    return pckgs
+  intersect := func(A,B *[]string) []string {
+	var intersection []string
+	var smaller, bigger *[]string
+	if len(*A) > len(*B) {
+	  smaller = A
+	  bigger = B
+	} else {
+	  smaller = B 
+	  bigger = A
+	}
+	for _,v := range *bigger {
+	  for _,v2 := range *smaller {
+		if v2 == v {
+		  intersection = append(intersection, v)
+		}
+	  }
+	}
 
+	return intersection
+  }
+
+  
+  var res []Package
+  i.db.View(func(tx *bolt.Tx) error {
+	var keys []string
+	first := true
+	psBucket := tx.Bucket([]byte("packages_search"))
+	pBucket := tx.Bucket([]byte("packages"))
+
+	words := strings.Split(strings.ToLower(name), " ")
+	for _,w := range words {
+	  var keysForWord []string
+	  prefix := []byte(w)
+	  c := psBucket.Cursor()
+	  for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
+		keysForWord = append(keysForWord, strings.Split(string(v), ",")...)
+	  }
+	  fmt.Print(keysForWord, w)
+	  if first {
+		keys = keysForWord
+		first = false
+	  } else {
+		keys = intersect(&keysForWord, &keys)
+	  }
+	  if len(keys) == 0 {
+		return nil
+	  }
+	}
+
+	for _,k := range keys {
+	  if k != "" {
+		res = append(res, PackageFromJSON(pBucket.Get([]byte(k))))
+	  }
+	}
+	return nil
+  })
+
+  return res
 }
 
 func (i *Indexer) SetupDB() {
-  p := path.Join(i.Conf.DBPath, ".indexer.db")
-  db, err := gorm.Open("sqlite3", p)
+  p := path.Join(i.Conf.DBPath, ".indexer.bdb")
+
+  db, err := bolt.Open(p, 0600, nil)
   if err != nil {
-    panic("failed to connect database")
+	  log.Fatal(err)
   }
+  db.Update(func(tx *bolt.Tx) error {
+	tx.CreateBucketIfNotExists([]byte("packages"))
+	tx.CreateBucketIfNotExists([]byte("packages_search"))
+	tx.CreateBucketIfNotExists([]byte("releases"))
+	tx.CreateBucketIfNotExists([]byte("downloaded"))
+	return nil
+  })
   i.db = db
-  i.db.Exec("PRAGMA journal_mode=WAL;")
-  db.AutoMigrate(&Package{})
-  db.AutoMigrate(&Release{})
-  db.AutoMigrate(&Downloaded{})
+}
+
+func (i *Indexer) GetPackage(id int) (bool, Package) {
+  panic("not implemented")
 }
 
 func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
