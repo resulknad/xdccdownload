@@ -10,7 +10,7 @@ import "github.com/elgs/gostrgen"
 
 type Download struct {
 	ID string
-    Packid int
+    Packid string
     Targetfolder string
     Pack Package
     Percentage float32

@@ -25,6 +25,7 @@ type Indexer struct {
 }
 
 type Package struct {
+	ID string
     Server string
     Channel string
     Bot string
@@ -47,6 +48,27 @@ type Downloaded struct {
 	Filename string
 	Location string
 	ReleaseID uint
+}
+
+func (i *Indexer) ExpirePackages() {
+  for {
+	i.db.Update(func(tx *bolt.Tx) error {
+	  expirationTime := time.Now().Add(-10 * time.Second)
+	  pBucket := tx.Bucket([]byte("packages"))
+	  c := pBucket.Cursor()
+	  for k, v := c.First(); k != nil; k, v = c.Next() {
+		p := PackageFromJSON(v)
+		t,_ := time.Parse(time.RFC850, p.Time)
+		if t.Before(expirationTime) {
+		  i.removePackage(tx, &p)
+		}
+	  }
+	  return nil
+	})
+	
+
+	time.Sleep(1*time.Second)
+  }
 }
 
 func (i *Indexer) AddDownloaded(r Release) {
@@ -284,6 +306,7 @@ func (i *Indexer) addPackage(tx *bolt.Tx, p Package) (didupdate bool) {
 		p.Release = p.Parse()
 		rBucket.Put([]byte(p.Filename), p.Release.json())
 	  }
+	  p.ID = p.key()
 	  
 	  pBucket.Put([]byte(p.key()), p.json())
 
@@ -298,12 +321,15 @@ func (i *Indexer) addPackage(tx *bolt.Tx, p Package) (didupdate bool) {
 
 func (i *Indexer) RemovePackage(p *Package) {
   err := i.db.Update(func(tx *bolt.Tx) error {
-	tx.Bucket([]byte("packages")).Delete([]byte(p.key()))
+	i.removePackage(tx, p)
 	return nil
   })
   if err != nil {
 	panic(err)
   }
+}
+func (i *Indexer) removePackage(tx *bolt.Tx, p *Package) {
+  tx.Bucket([]byte("packages")).Delete([]byte(p.key()))
 }
 
 func (i *Indexer) Search(name string) []Package {
@@ -349,8 +375,18 @@ func (i *Indexer) SetupDB() {
   i.db = db
 }
 
-func (i *Indexer) GetPackage(id int) (bool, Package) {
-  panic("not implemented")
+func (i *Indexer) GetPackage(id string) (found bool, p Package) {
+  i.db.View(func(tx *bolt.Tx) error {
+	v := tx.Bucket([]byte("packages")).Get([]byte(id))
+	if v == nil {
+	  found = false
+	} else {
+	  found = true
+	  p = PackageFromJSON(v)
+	}
+	return nil
+  })
+  return found, p
 }
 
 func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
@@ -419,6 +455,7 @@ func CreateIndexer(c *Config, connPool *ConnectionPool) *Indexer {
 	for i :=0; i<2; i++ {
 	    go indx.WaitForPackages(indx.announcementCh)
 	}
+	go indx.ExpirePackages()
 
     return &indx
 }
