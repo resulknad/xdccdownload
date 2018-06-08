@@ -270,23 +270,22 @@ func (p Package) json() []byte {
 
 func (i *Indexer) addPackage(tx *bolt.Tx, p Package) (didupdate bool) {
 	  pBucket := tx.Bucket([]byte("packages"))
-	  //rBucket := tx.Bucket([]byte("releases"))
+	  rBucket := tx.Bucket([]byte("releases"))
+
 	  if pBucket.Get([]byte(p.key())) != nil {
 		didupdate = true
 	  } else {
 		didupdate = false
 	  }
 
-	  /*if release := rBucket.Get([]byte(p.Filename)); release != nil {
+	  if release := rBucket.Get([]byte(p.Filename)); release != nil {
 		p.Release = ReleaseFromJSON(release)
-	  } else {*/
+	  } else {
 		p.Release = p.Parse()
-		//rBucket.Put([]byte(p.Filename), p.Release.json())
-	  //}
+		rBucket.Put([]byte(p.Filename), p.Release.json())
+	  }
 	  
 	  pBucket.Put([]byte(p.key()), p.json())
-	  // i.addToSearchIndex(tx, p) 
-
 
 	return didupdate
 }
@@ -296,20 +295,6 @@ func (i *Indexer) addPackage(tx *bolt.Tx, p Package) (didupdate bool) {
     i.db.First(&pack, id)
     return true, pack
 }*/
-
-func (i *Indexer) addToSearchIndex(tx *bolt.Tx, p Package) {
-  words := strings.Split(strings.ToLower(p.Filename), ".")
-  sBucket := tx.Bucket([]byte("packages_search"))
-
-  for _,w := range words { 
-	if ids := sBucket.Get([]byte(w)); ids != nil {
-	  sBucket.Put([]byte(w), []byte(string(ids) + p.key() + ","))
-	} else {
-	  sBucket.Put([]byte(w), []byte(p.key() + ","))
-	}
-	// sBucket.Put([]byte(w+":"+p.key()), []byte(p.key()))
-  }
-}
 
 func (i *Indexer) RemovePackage(p *Package) {
   err := i.db.Update(func(tx *bolt.Tx) error {
@@ -346,65 +331,6 @@ func (i *Indexer) Search(name string) []Package {
   })
   log.Print("searched through ",count)
   return res
-/*
-  intersect := func(A,B *[]string) []string {
-	var intersection []string
-	var smaller, bigger *[]string
-	if len(*A) > len(*B) {
-	  smaller = A
-	  bigger = B
-	} else {
-	  smaller = B 
-	  bigger = A
-	}
-	for _,v := range *bigger {
-	  for _,v2 := range *smaller {
-		if v2 == v {
-		  intersection = append(intersection, v)
-		}
-	  }
-	}
-
-	return intersection
-  }
-
-  
-  var res []Package
-  i.db.View(func(tx *bolt.Tx) error {
-	var keys []string
-	first := true
-	psBucket := tx.Bucket([]byte("packages_search"))
-	pBucket := tx.Bucket([]byte("packages"))
-
-	words := strings.Split(strings.ToLower(name), " ")
-	for _,w := range words {
-	  var keysForWord []string
-	  prefix := []byte(w)
-	  c := psBucket.Cursor()
-	  for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
-		keysForWord = append(keysForWord, strings.Split(string(v), ",")...)
-	  }
-	  fmt.Print(keysForWord, w)
-	  if first {
-		keys = keysForWord
-		first = false
-	  } else {
-		keys = intersect(&keysForWord, &keys)
-	  }
-	  if len(keys) == 0 {
-		return nil
-	  }
-	}
-
-	for _,k := range keys {
-	  if k != "" {
-		res = append(res, PackageFromJSON(pBucket.Get([]byte(k))))
-	  }
-	}
-	return nil
-  })
-
-  return res*/
 }
 
 func (i *Indexer) SetupDB() {
@@ -416,7 +342,6 @@ func (i *Indexer) SetupDB() {
   }
   db.Update(func(tx *bolt.Tx) error {
 	tx.CreateBucketIfNotExists([]byte("packages"))
-	tx.CreateBucketIfNotExists([]byte("packages_search"))
 	tx.CreateBucketIfNotExists([]byte("releases"))
 	tx.CreateBucketIfNotExists([]byte("downloaded"))
 	return nil
