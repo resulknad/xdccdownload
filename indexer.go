@@ -341,9 +341,7 @@ func (i *Indexer) addPackage(tx *bolt.Tx, p Package) {
 	  rBucket := tx.Bucket([]byte("releases"))
 
 	  pDb := pBucket.Get([]byte(p.key()))
-	  if pDb == nil || PackageFromJSON(pDb).isDifferentTo(p) {
-		i.offerPackageToTasks(p, false)
-	  }
+
 	  
 
 	  if release := rBucket.Get([]byte(p.Filename)); release != nil {
@@ -353,6 +351,10 @@ func (i *Indexer) addPackage(tx *bolt.Tx, p Package) {
 		rBucket.Put([]byte(p.Filename), p.Release.json())
 	  }
 	  p.ID = p.key()
+	  
+	  if pDb == nil || PackageFromJSON(pDb).isDifferentTo(p) {
+		i.offerPackageToTasks(p, false)
+	  }
 	  
 	  pBucket.Put([]byte(p.key()), p.json())
 
