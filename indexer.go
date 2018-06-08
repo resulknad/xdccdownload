@@ -4,7 +4,6 @@ import "log"
 import "path/filepath"
 import "encoding/json"
 import "strings"
-import "bytes"
 import "strconv"
 import "regexp"
 import "os"
@@ -230,8 +229,7 @@ func (i *Indexer) AddNewPackageSubscription(ch chan Package) {
 }
 
 func (i *Indexer) AddPackage(p Package) {
-
-    if !i.UpdateIfExists(p) {
+    /*if !i.UpdateIfExists(p) {
 	  // p.Release = i.getReleaseForPackage(p)
 	  for _,ch := range i.pckgChs {
 		  select {
@@ -240,6 +238,7 @@ func (i *Indexer) AddPackage(p Package) {
 		  }
 	  }
   }
+  */
 }
 
 func (p Release) key() string {
@@ -269,32 +268,26 @@ func (p Package) json() []byte {
   }
 }
 
-func (i *Indexer) UpdateIfExists(p Package) (didupdate bool) {
-	err := i.db.Update(func(tx *bolt.Tx) error {
+func (i *Indexer) addPackage(tx *bolt.Tx, p Package) (didupdate bool) {
 	  pBucket := tx.Bucket([]byte("packages"))
-	  rBucket := tx.Bucket([]byte("releases"))
+	  //rBucket := tx.Bucket([]byte("releases"))
 	  if pBucket.Get([]byte(p.key())) != nil {
 		didupdate = true
 	  } else {
 		didupdate = false
 	  }
 
-	  if release := rBucket.Get([]byte(p.Filename)); release != nil {
+	  /*if release := rBucket.Get([]byte(p.Filename)); release != nil {
 		p.Release = ReleaseFromJSON(release)
-	  } else {
+	  } else {*/
 		p.Release = p.Parse()
-		rBucket.Put([]byte(p.Filename), p.Release.json())
-	  }
+		//rBucket.Put([]byte(p.Filename), p.Release.json())
+	  //}
 	  
 	  pBucket.Put([]byte(p.key()), p.json())
-	  i.addToSearchIndex(tx, p) 
+	  // i.addToSearchIndex(tx, p) 
 
-	  return nil
-	})
 
-	if err != nil {
-	  panic(err)
-	}
 	return didupdate
 }
 
@@ -308,12 +301,13 @@ func (i *Indexer) addToSearchIndex(tx *bolt.Tx, p Package) {
   words := strings.Split(strings.ToLower(p.Filename), ".")
   sBucket := tx.Bucket([]byte("packages_search"))
 
-  for _,w := range words {
+  for _,w := range words { 
 	if ids := sBucket.Get([]byte(w)); ids != nil {
 	  sBucket.Put([]byte(w), []byte(string(ids) + p.key() + ","))
 	} else {
 	  sBucket.Put([]byte(w), []byte(p.key() + ","))
 	}
+	// sBucket.Put([]byte(w+":"+p.key()), []byte(p.key()))
   }
 }
 
@@ -328,6 +322,31 @@ func (i *Indexer) RemovePackage(p *Package) {
 }
 
 func (i *Indexer) Search(name string) []Package {
+  var res []Package
+  var count int64
+  i.db.View(func(tx *bolt.Tx) error {
+	pBucket := tx.Bucket([]byte("packages"))
+	words := strings.Split(strings.ToLower(name), " ")
+
+	  c := pBucket.Cursor()
+	  for k, v := c.First(); k != nil; k, v = c.Next() {
+		  count++
+		  containsAll := true
+		for _,w := range words {
+			if !strings.Contains(strings.ToLower(string(v)), w) {
+				containsAll = false
+				break
+			}
+		  }
+		  if containsAll {
+			  res = append(res, PackageFromJSON(v))
+		  }
+	  }
+	  return nil
+  })
+  log.Print("searched through ",count)
+  return res
+/*
   intersect := func(A,B *[]string) []string {
 	var intersection []string
 	var smaller, bigger *[]string
@@ -385,7 +404,7 @@ func (i *Indexer) Search(name string) []Package {
 	return nil
   })
 
-  return res
+  return res*/
 }
 
 func (i *Indexer) SetupDB() {
@@ -412,16 +431,28 @@ func (i *Indexer) GetPackage(id int) (bool, Package) {
 func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
     listingRegexp := regexp.MustCompile(`(#[0-9]*)[^0-9]*([0-9]*x)[^\[]*\[([ 0-9.]+(?:M|G)?)\][^\x21-\x7E]*(.*)`)
 	colorRegexp := regexp.MustCompile(`\x03[0-9,]*([^\x03]*)\x03`)
+	var cache []Package
     for {
         select {
             case msg := <-ch:
                 if listingRegexp.MatchString(msg.Content) {
+					matches := listingRegexp.FindStringSubmatch(colorRegexp.ReplaceAllString(msg.Content, "$1"))
+					nmb, gets, size, name := matches[1], matches[2], strings.Trim(matches[3]," \r\n\u000f"), strings.Trim(matches[4], " \r\n\u000f")
+					cache= append(cache, Package{Server: msg.Server, Channel: msg.To, Bot: msg.From, Package: nmb, Filename: name, Size: size, Gets: gets, Time: time.Now().Format(time.RFC850)})
+					if len(cache) > 99 {
+						err := indx.db.Update(func(tx *bolt.Tx) error {
+							for _,p := range cache {
+								indx.addPackage(tx, p)
+							}
+							return nil
+						})
 
-
-                    matches := listingRegexp.FindStringSubmatch(colorRegexp.ReplaceAllString(msg.Content, "$1"))
-                    nmb, gets, size, name := matches[1], matches[2], strings.Trim(matches[3]," \r\n\u000f"), strings.Trim(matches[4], " \r\n\u000f")
-                    indx.AddPackage(Package{Server: msg.Server, Channel: msg.To, Bot: msg.From, Package: nmb, Filename: name, Size: size, Gets: gets, Time: time.Now().Format(time.RFC850)})
-
+						if err != nil {
+						  panic(err)
+						}
+						log.Print("written to db")
+						cache = []Package{}
+					}
                 }
         }
     }
@@ -460,7 +491,7 @@ func CreateIndexer(c *Config, connPool *ConnectionPool) *Indexer {
 		}
     }
 
-	for i :=0; i<10; i++ {
+	for i :=0; i<2; i++ {
 	    go indx.WaitForPackages(indx.announcementCh)
 	}
 
