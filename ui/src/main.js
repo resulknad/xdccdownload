@@ -16,7 +16,7 @@ Vue.component('dna_nav', Nav)
 Vue.use(BootstrapVue)
 Vue.use(VueRouter)
 const router = new VueRouter({
-    routes: [{path: '/', component: App},
+    routes: [{path: '/', component: Tasks},
         {path: '/search', name:'search', component: Search},
         {path: '/downloads', name:'downloads', component: Download},
         {path: '/tasks', name:'tasks', component: Tasks}]

@@ -1,7 +1,8 @@
 <template>
     <div>
-        <b-pagination :total-rows="pckgs.length" per-page="50" v-model="currentPage" class="my-0" />
-          <b-table hover :items="pckgs" :fields="fields"              :current-page="currentPage"
+      <b-container fluid><b-row class="text-center"><b-col><h1 v-if="searchInProgress">Searching...</h1></b-col></b-row></b-container fluid>
+        <b-pagination v-if="!searchInProgress" :total-rows="pckgs.length" per-page="50" v-model="currentPage" class="my-0" />
+          <b-table  v-if="!searchInProgress"  hover :items="pckgs" :fields="fields"              :current-page="currentPage"
              per-page="50">
           <template slot="actions" slot-scope="cell">
               <b-btn @click="showModal(cell.item)">Download</b-btn>
@@ -25,6 +26,7 @@ export default {
   name: 'search',
   data () {
     return {
+      searchInProgress:false,
         pckgs: [],
           fields: [
         {
@@ -68,11 +70,15 @@ watch: {
             }
         },
         loadData() {
+          this.searchInProgress = true
             axios.get(consts.baseURL + `packages/` + encodeURIComponent(this.$route.query.search))
             .then(response => {
-              this.pckgs = response.data
+              this.searchInProgress = false
+              this.pckgs = (response.data) ? response.data : []
+
             })
             .catch(e => {
+              this.searchInProgress = false
                 console.log(e);
             });
             axios.get(consts.baseURL +  `config/`)

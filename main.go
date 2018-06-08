@@ -52,8 +52,10 @@ func main() {
     dm := DownloadManagerRestAPI{dlm}
 
 
+// Creates a router without any middleware by default
+	router := gin.New()
+	router.Use(gin.Recovery())
 
-    router := gin.Default()
     config := cors.DefaultConfig()
     config.AllowAllOrigins = true
     config.AddAllowMethods("DELETE")
@@ -72,15 +74,15 @@ func main() {
     router.POST("/download/", dm.Create)
     router.PUT("/download/:id", dm.Update)
 
-	/*
-	tm := CreateTaskmgr(indx, dlm)
+	
+	tm := CreateTaskmgr(indx, dlm, &c)
 	go tm.StartAllTasks()
     tm_api := TaskmgrEndpoints{tm}
 	router.GET("/tasks/", tm_api.All)
 	router.POST("/tasks/", tm_api.Create)
 	router.GET("/tasks/:id", tm_api.Get)
 	router.DELETE("/tasks/:id", tm_api.Delete)
-	router.PUT("/tasks/:id", tm_api.Update)*/
+	router.PUT("/tasks/:id", tm_api.Update)
 
     router.Run(":" + string(c.Port))
     for {

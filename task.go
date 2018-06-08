@@ -1,41 +1,58 @@
 package main
-/*
+
 
 import "log"
 
 import (
 	"time"
-     "github.com/jinzhu/gorm"
-     _"github.com/jinzhu/gorm/dialects/sqlite"
+	"bytes"
+	"strconv"
+	"encoding/json"
+  	"github.com/boltdb/bolt"
 	 "github.com/fatih/structs"
 )
 
 type Taskinfo struct {
-	gorm.Model
-	Name string
-	Criteria string
-	Enabled bool
+  ID uint64
+  Name string
+  Criteria string
+  Enabled bool
+}
+
+func (ti Taskinfo) json() []byte {
+  b, err := json.Marshal(ti)
+  if err == nil {
+	return b
+  } else {
+	return []byte("")
+  }
+}
+func (ti Taskinfo) byteid() []byte {
+  return []byte(strconv.FormatUint(ti.ID,10))
 }
 
 type Task struct {
 	Taskinfo
+	db *bolt.DB
 	State int
 	queue chan Package
 	parsedExp *ParsedExpression
 	quit chan bool
 	indx *Indexer
 	dlm *DownloadManager
+	Packages []Package
 }
 
 
 type TaskQueue struct {
-	gorm.Model
+  ID string
 	TaskinfoID uint
 	PackageID uint
 	Package Package `gorm:"foreignkey:PackageID"`
 }
 
-func (t* Task) Init(indx *Indexer, dlm *DownloadManager) {
+func (t* Task) Init(indx *Indexer, dlm *DownloadManager, db *bolt.DB) {
+  t.db = db
 	t.State = 1
 	t.indx = indx
 	t.dlm = dlm
@@ -70,14 +87,28 @@ func (t *Task) MatchesCriterias(p Package) bool {
 	return match
 }
 
-
-
 func (t *Task) enqueue(p Package, block bool) bool {
-	if ! (p.ID > 0) {
-		return false
-	}
+  if len(t.GetAllQueued()) > 10 {
+	log.Print("queue full, ignore")
+	return false
+  }
+	t.db.Update(func (tx *bolt.Tx) error {
+	  tBucket := tx.Bucket([]byte("tasks"))
+	  c := tBucket.Cursor()
+	  prefix := append(t.Taskinfo.byteid(), []byte(":")...)
 
-	t.indx.db.Create(&TaskQueue{PackageID:p.ID,TaskinfoID:t.ID})
+	  for k,v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
+		if PackageFromJSON(v).key() == p.key() {
+		  log.Print("didnt add bc already in there")
+		  return nil
+		}
+	  }
+
+	  nid, _ := tBucket.NextSequence()
+	  tBucket.Put([]byte(strconv.FormatUint(t.ID, 10) + ":" + strconv.FormatUint(nid, 10)), []byte(p.json()))
+	  return nil
+	})
+
 	return true
 }
 
@@ -90,22 +121,55 @@ func (t *Task) CheckQuit() bool {
 	}
 }
 
-func (t *Task) PullFromQueue() (bool, *TaskQueue) {
-	var q TaskQueue
-	tx := t.indx.db.Begin()
-	tx.Preload("Package").Where("taskinfo_id = ?", t.ID).First(&q)
-	if q.ID == 0 {
-		tx.Commit()
-		return false, nil
-	}
+func (t *Task) GetAllQueued() []Package {
+  var res []Package
+	t.db.Update(func (tx *bolt.Tx) error {
+	  tBucket := tx.Bucket([]byte("tasks"))
+	  c := tBucket.Cursor()
+	  prefix := append(t.Taskinfo.byteid(), []byte(":")...)
 
-	tx.Delete(&q)
-	tx.Commit()
+	  for k,v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
+		res = append(res, PackageFromJSON(v))
+	  }
 
-	if q.Package.Filename == "" { // package might have been deleted at some point
-		return false, nil
-	}
-	return true, &q
+	  return nil
+	})
+	return res
+}
+
+
+func (t *Task) EmptyQueue() {
+	t.db.Update(func (tx *bolt.Tx) error {
+	  tBucket := tx.Bucket([]byte("tasks"))
+	  c := tBucket.Cursor()
+	  prefix := append(t.Taskinfo.byteid(), []byte(":")...)
+
+	  for k,_ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
+		tBucket.Delete(k)
+	  }
+
+	  return nil
+	})
+}
+
+func (t *Task) PullFromQueue() (found bool, p Package) {
+	t.db.Update(func (tx *bolt.Tx) error {
+	  tBucket := tx.Bucket([]byte("tasks"))
+	  c := tBucket.Cursor()
+	  prefix := append(t.Taskinfo.byteid(), []byte(":")...)
+
+	  k,v := c.Seek(prefix)
+	  if k != nil && bytes.HasPrefix(k, prefix) {
+		found = true
+		p = PackageFromJSON(v)
+		tBucket.Delete(k)
+	  } else {
+		found = false
+	  }
+	  return nil
+	})
+
+	return found, p
 }
 
 func (t *Task) Worker() {
@@ -118,13 +182,12 @@ func (t *Task) Worker() {
 			return
 		}
 
-		avail, q := t.PullFromQueue()
+		avail, p := t.PullFromQueue()
 
 		if !avail {
 			time.Sleep(1*time.Second)
 			continue
 		}
-		p := q.Package
 
 		if t.indx.CheckDownloaded(p) {
 			continue
@@ -133,10 +196,9 @@ func (t *Task) Worker() {
 		i, dl := t.dlm.GetDownload(dlId)
 		log.Print("Issued DL ")
 
-		for i != -1 && dl.State == 0 { // wait while DL in progress
+		for false && i != -1 && dl.State == 0 { // wait while DL in progress
 			time.Sleep(1*time.Second)
 			i, dl = t.dlm.GetDownload(dlId)
-			log.Print("loop")
 			if t.CheckQuit() {
 				t.State = 0
 				log.Print("Quitting task")
@@ -147,11 +209,13 @@ func (t *Task) Worker() {
 			t.indx.RemovePackage(&p)
 			log.Print("Deleted package bc of failure to dl")
 		} else {
-			t.indx.AddDownloaded(p)
+		  log.Print("add to downloaded")
+		  log.Print(p.Release)
+			t.indx.AddDownloaded(p.Release)
 		}
 		log.Print("Done")
 
 
 	}
 }
-*/
+

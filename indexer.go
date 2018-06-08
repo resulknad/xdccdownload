@@ -21,6 +21,7 @@ type Indexer struct {
     connPool *ConnectionPool
 	imdb *IMDB
 	pckgChs [] (chan Package)
+	timeToScan chan bool
 	announcementCh chan PrivMsg
 }
 
@@ -50,10 +51,38 @@ type Downloaded struct {
 	ReleaseID uint
 }
 
+func (i *Indexer) TriggerRescan() {
+  select {
+  case i.timeToScan<-true:
+  default:
+  }
+}
+
+func (i *Indexer) OfferAllToTasks() {
+  for {
+	log.Print("starting to offer all packages to tasks")
+	i.db.View(func(tx *bolt.Tx) error {
+	  pBucket := tx.Bucket([]byte("packages"))
+	  c := pBucket.Cursor()
+	  for k, v := c.First(); k != nil; k, v = c.Next() {
+		i.offerPackageToTasks(PackageFromJSON(v), true)
+	  }
+	  return nil
+	})
+	log.Print("done to offer all packages to tasks")
+	select {
+	  case <-time.After(10*time.Minute):
+	  case <-i.timeToScan:
+	  log.Print("full db scan triggered")
+	}
+
+  }
+}
+
 func (i *Indexer) ExpirePackages() {
   for {
 	i.db.Update(func(tx *bolt.Tx) error {
-	  expirationTime := time.Now().Add(-10 * time.Second)
+	  expirationTime := time.Now().Add(-4 * time.Hour)
 	  pBucket := tx.Bucket([]byte("packages"))
 	  c := pBucket.Cursor()
 	  for k, v := c.First(); k != nil; k, v = c.Next() {
@@ -67,7 +96,7 @@ func (i *Indexer) ExpirePackages() {
 	})
 	
 
-	time.Sleep(1*time.Second)
+	time.Sleep(10*time.Minute)
   }
 }
 
@@ -75,6 +104,7 @@ func (i *Indexer) AddDownloaded(r Release) {
   err := i.db.Update(func(tx *bolt.Tx) error {
 	dBucket := tx.Bucket([]byte("downloaded"))
 	dBucket.Put([]byte(r.key()), []byte(r.json()))
+	log.Print("putting " + r.key() + " = " + string(r.json()))
 	return nil
   })
   if err != nil {
@@ -250,27 +280,43 @@ func (i *Indexer) AddNewPackageSubscription(ch chan Package) {
 	i.pckgChs = append(i.pckgChs, ch)
 }
 
+func (i *Indexer) offerPackageToTasks(p Package, block bool) {
+  for _,ch := range i.pckgChs {
+	if !block {
+	  select {
+		  case ch<-p:
+		  default:
+			log.Print("offer channel full")
+	  }
+	} else {
+	  ch<-p
+	}
+  }
+}
+
 func (i *Indexer) AddPackage(p Package) {
+  panic("not implemented")
     /*if !i.UpdateIfExists(p) {
 	  // p.Release = i.getReleaseForPackage(p)
-	  for _,ch := range i.pckgChs {
-		  select {
-			  case ch<-p:
-			  default:
-		  }
-	  }
+
   }
   */
 }
 
 func (p Release) key() string {
-  var s string
-  fmt.Sprintf("%s:%d:%s:%d:%d", p.Type, p.Year,p.Title, p.Season, p.Episode)
-  return s
+  return strings.ToLower(fmt.Sprintf("%s:%d:%s:%d:%d", p.Type, p.Year,p.Title, p.Season, p.Episode))
 }
 
 func (p Package) key() string {
   return p.Server + ":" + p.Channel + ":" + p.Bot + ":" + p.Package
+}
+
+func (p Package) isDifferentTo(p2 Package) bool {
+  if p.Filename != p2.Filename {
+	return true
+  } else {
+	return false
+  }
 }
 
 func (p Release) json() []byte {
@@ -290,15 +336,15 @@ func (p Package) json() []byte {
   }
 }
 
-func (i *Indexer) addPackage(tx *bolt.Tx, p Package) (didupdate bool) {
+func (i *Indexer) addPackage(tx *bolt.Tx, p Package) {
 	  pBucket := tx.Bucket([]byte("packages"))
 	  rBucket := tx.Bucket([]byte("releases"))
 
-	  if pBucket.Get([]byte(p.key())) != nil {
-		didupdate = true
-	  } else {
-		didupdate = false
+	  pDb := pBucket.Get([]byte(p.key()))
+	  if pDb == nil || PackageFromJSON(pDb).isDifferentTo(p) {
+		i.offerPackageToTasks(p, false)
 	  }
+	  
 
 	  if release := rBucket.Get([]byte(p.Filename)); release != nil {
 		p.Release = ReleaseFromJSON(release)
@@ -310,7 +356,6 @@ func (i *Indexer) addPackage(tx *bolt.Tx, p Package) (didupdate bool) {
 	  
 	  pBucket.Put([]byte(p.key()), p.json())
 
-	return didupdate
 }
 
 /*func (i *Indexer) GetPackage(id int) (bool, Package) {
@@ -439,25 +484,28 @@ func (indx* Indexer) setupChannelListener(server string, channel string) bool {
 	return true
 }
 
+
+
 func CreateIndexer(c *Config, connPool *ConnectionPool) *Indexer {
-    indx := Indexer{Conf: c, connPool: connPool}
-    indx.SetupDB()
+  indx := Indexer{Conf: c, connPool: connPool, timeToScan: make(chan bool,1)}
+  indx.SetupDB()
 
-	indx.imdb = CreateIMDB(c)
+  indx.imdb = CreateIMDB(c)
 
-    indx.announcementCh = make(chan PrivMsg, 100)
-    for _,el := range c.Channels {
-		if !indx.setupChannelListener(el.Server, el.Channel) {
-			//return nil
-		}
-    }
+  indx.announcementCh = make(chan PrivMsg, 100)
+  for _,el := range c.Channels {
+	  if !indx.setupChannelListener(el.Server, el.Channel) {
+		  //return nil
+	  }
+  }
 
-	for i :=0; i<2; i++ {
-	    go indx.WaitForPackages(indx.announcementCh)
-	}
-	go indx.ExpirePackages()
+  for i :=0; i<2; i++ {
+	  go indx.WaitForPackages(indx.announcementCh)
+  }
+  go indx.ExpirePackages()
+  go indx.OfferAllToTasks()
 
-    return &indx
+  return &indx
 }
 
 func (indx *Indexer) InitWatchDog() {

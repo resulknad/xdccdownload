@@ -1,33 +1,41 @@
 
 package main
-/*
+
 
 
 import "sync"
 import "log"
 import "fmt"
-import "time"
+import "path"
+import "encoding/json"
+import "strings"
 import (
-     "github.com/jinzhu/gorm"
-     _"github.com/jinzhu/gorm/dialects/sqlite"
+  	"github.com/boltdb/bolt"
 )
 type Taskmgr struct {
 	sync.Mutex
 	indx *Indexer
 	dlm *DownloadManager
 	pckgCh chan Package
-	db *gorm.DB
+	db *bolt.DB
 	tasks []*Task
 }
 
-func CreateTaskmgr(indx *Indexer, dlm *DownloadManager) *Taskmgr {
+func CreateTaskmgr(indx *Indexer, dlm *DownloadManager, conf *Config) *Taskmgr {
 	t := Taskmgr{}
 	t.indx = indx
-	t.db = indx.db
 
+	p := path.Join(conf.DBPath, ".tasks.bdb")
+	db, err := bolt.Open(p, 0600, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	db.Update(func(tx *bolt.Tx) error {
+	  tx.CreateBucketIfNotExists([]byte("tasks"))
+	  return nil
+	})
+	t.db = db
 
-	t.db.AutoMigrate(&Taskinfo{})
-	t.db.AutoMigrate(&TaskQueue{})
 	t.dlm = dlm
 
 	t.pckgCh = make(chan Package,100)
@@ -56,6 +64,7 @@ func (tm *Taskmgr) EnqueueAll(p Package) {
 		}
 	}
 }
+
 func (tm *Taskmgr) QuitTask(t *Task) {
 	defer func() {
 		log.Print("QuitTask")
@@ -63,6 +72,7 @@ func (tm *Taskmgr) QuitTask(t *Task) {
 			log.Print("recovered", r)
 		}
 	}()
+	t.EmptyQueue()
 	log.Print(t)
 	close(t.quit)
 	for i,tl := range(tm.tasks) {
@@ -73,9 +83,9 @@ func (tm *Taskmgr) QuitTask(t *Task) {
 }
 
 func (tm *Taskmgr) StartAllTasks() {
-	for _,t := range(tm.GetAllTaskinfo()) {
-		tm.CreateTask(t)
-	}
+  for _,t := range(tm.GetAllTaskinfo()) {
+	tm.CreateTask(t)
+  }
 }
 
 func (tm *Taskmgr) StartTask(t *Task) {
@@ -85,7 +95,8 @@ func (tm *Taskmgr) StartTask(t *Task) {
 		tm.QuitTask(t)
 	}
 
-	t.Init(tm.indx, tm.dlm)
+	t.Init(tm.indx, tm.dlm, tm.db)
+	tm.indx.TriggerRescan()
 
 	if !t.Taskinfo.Enabled {
 		return
@@ -95,7 +106,7 @@ func (tm *Taskmgr) StartTask(t *Task) {
 }
 
 func (t *Taskmgr) EnqueueAllFromDB() {
-	for {
+	/*for {
 		var pckgs []Package
 		// dirty trick, gorm cant preload if we dont page
 		for i:=0; (len(pckgs)>0 || i==0); i+=500 {
@@ -109,7 +120,7 @@ func (t *Taskmgr) EnqueueAllFromDB() {
 		time.Sleep(60*time.Second) // this process shouldnt put too much load on the system...
 		
 		log.Print("done with enqueue")
-	}
+	}*/
 }
 
 func (tm *Taskmgr) titot(ti *Taskinfo) *Task {
@@ -123,20 +134,37 @@ func (tm *Taskmgr) titot(ti *Taskinfo) *Task {
 
 func (tm *Taskmgr) RemoveTask(ti *Taskinfo) {
 	tm.QuitTask(tm.titot(ti))
-	tm.db.Delete(&ti)		
+	tm.db.Update(func (tx *bolt.Tx) error {
+	  tBucket := tx.Bucket([]byte("tasks"))
+	  tBucket.Delete(ti.byteid())
+	  return nil
+	})
 }
 
 func (tm *Taskmgr) UpdateTask(ti *Taskinfo) {
 	fmt.Print("Updating")
 	tm.QuitTask(tm.titot(ti))
-	tm.db.Save(ti)
+	tm.db.Update(func (tx *bolt.Tx) error {
+	  tBucket := tx.Bucket([]byte("tasks"))
+	  tBucket.Put(ti.byteid(), ti.json())
+	  return nil
+	})
 	tm.CreateTask(ti)
 }
 
 func (tm *Taskmgr) CreateTask(ti *Taskinfo) {
+
 	if ti.ID == 0 {
-		tm.db.Create(ti)	
+	  tm.db.Update(func (tx *bolt.Tx) error {
+		tBucket := tx.Bucket([]byte("tasks"))
+		nid,_ := tBucket.NextSequence()
+		ti.ID = nid
+		tBucket.Put(ti.byteid(), ti.json())
+		return nil
+	  })
+
 	}
+
 	t := Task{Taskinfo: *ti}
 	tm.tasks = append(tm.tasks, &t)
 	tm.StartTask(&t)
@@ -150,16 +178,24 @@ func (tm *Taskmgr) GetAllTasks() []*Task {
 		} else {
 			t := Task{Taskinfo: *ti}
 			ts = append(ts, &t)
-		}
-		
+		}	
+		ts[len(ts)-1].Packages = ts[len(ts)-1].GetAllQueued()
 	}
 	return ts
 }
 
-
-func (tm *Taskmgr) GetTask(id int) *Task {
+func (tm *Taskmgr) GetTask(id uint64) *Task {
 	var ti Taskinfo
-	tm.db.First(&ti, id)
+	tm.db.View(func (tx *bolt.Tx) error {
+	  tBucket := tx.Bucket([]byte("tasks"))
+	  ti_json := tBucket.Get(Taskinfo{ID: id}.byteid())
+	  if ti_json != nil {
+		ti = *TaskinfoFromJSON(ti_json)
+	  }
+	  
+	  return nil
+	})
+
 	if t := tm.titot(&ti); t!=nil {
 		return t
 	} else {
@@ -168,10 +204,28 @@ func (tm *Taskmgr) GetTask(id int) *Task {
 	}
 }
 
+func TaskinfoFromJSON(b []byte) *Taskinfo {
+  var ti Taskinfo
+  err := json.Unmarshal(b, &ti)
+  if err != nil {
+	panic(err)
+  }
+  return &ti
+}
+
 func (tm *Taskmgr) GetAllTaskinfo() []*Taskinfo {
 	tis := []*Taskinfo{}
-	tm.db.Find(&tis)
+	tm.db.View(func (tx *bolt.Tx) error {
+	  tBucket := tx.Bucket([]byte("tasks"))
+
+	  c := tBucket.Cursor()
+	  for k, v := c.First(); k != nil; k, v = c.Next() {
+		if !strings.Contains(string(k), ":") {
+		  tis = append(tis, TaskinfoFromJSON(v))
+		}
+	  }
+	  return nil
+	})
 
 	return tis
 }
-*/

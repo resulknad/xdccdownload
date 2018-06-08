@@ -62,7 +62,7 @@ func (ie *IndexerEndpoints) pkgQuery(c *gin.Context) {
     c.JSON(200,ie.Search(c.Param("query")))
 }
 
-/*
+
 type TaskmgrEndpoints struct {
     *Taskmgr
 }
@@ -72,13 +72,13 @@ func (tm *TaskmgrEndpoints) All(c *gin.Context) {
 }
 
 func (tm *TaskmgrEndpoints) Get(c *gin.Context) {
-    if i, err := strconv.Atoi(c.Params.ByName("id")); err == nil {
+    if i, err := strconv.ParseUint(c.Params.ByName("id"), 10, 64); err == nil {
 		c.JSON(200,tm.GetTask(i))
 	}
 }
 
 func (tm *TaskmgrEndpoints) Delete(c *gin.Context) {
-    if i, err := strconv.Atoi(c.Params.ByName("id")); err == nil {
+    if i, err := strconv.ParseUint(c.Params.ByName("id"), 10, 64); err == nil {
 		tm.RemoveTask(&(tm.GetTask(i).Taskinfo))
 	}
 }
@@ -96,7 +96,7 @@ func (tm *TaskmgrEndpoints) Update(c *gin.Context) {
     if i, err := strconv.Atoi(c.Params.ByName("id")); err == nil {	
 		var ti Taskinfo
 		c.BindJSON(&ti)
-		if ti.ID != uint(i) {
+		if ti.ID != uint64(i) {
 			panic("ids dont match")
 		}
 		err,_ := ParseToPE(ti.Criteria)
@@ -109,4 +109,4 @@ func (tm *TaskmgrEndpoints) Update(c *gin.Context) {
 
 	}
 }
-*/
+
