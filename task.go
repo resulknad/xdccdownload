@@ -196,7 +196,7 @@ func (t *Task) Worker() {
 		i, dl := t.dlm.GetDownload(dlId)
 		log.Print("Issued DL ")
 
-		for false && i != -1 && dl.State == 0 { // wait while DL in progress
+		for i != -1 && dl.State == 0 { // wait while DL in progress
 			time.Sleep(1*time.Second)
 			i, dl = t.dlm.GetDownload(dlId)
 			if t.CheckQuit() {
