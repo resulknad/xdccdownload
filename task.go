@@ -35,7 +35,7 @@ type Task struct {
 	Taskinfo
 	db *bolt.DB
 	State int
-	queue chan Package
+	queue chan PackageMsg
 	parsedExp *ParsedExpression
 	quit chan bool
 	indx *Indexer
@@ -62,7 +62,7 @@ func (t* Task) Init(indx *Indexer, dlm *DownloadManager, db *bolt.DB) {
 	} else {
 		t.parsedExp = pe
 	}
-	t.queue = make(chan Package, 10)
+	// t.queue = make(chan Package, 10)
 	t.quit = make(chan bool)
 }
 

@@ -20,7 +20,7 @@ type Indexer struct {
     db *bolt.DB
     connPool *ConnectionPool
 	imdb *IMDB
-	pckgChs [] (chan Package)
+	pckgChs [] (chan PackageMsg)
 	timeToScan chan bool
 	announcementCh chan PrivMsg
 }
@@ -65,7 +65,7 @@ func (i *Indexer) OfferAllToTasks() {
 	  pBucket := tx.Bucket([]byte("packages"))
 	  c := pBucket.Cursor()
 	  for k, v := c.First(); k != nil; k, v = c.Next() {
-		i.offerPackageToTasks(PackageFromJSON(v), true)
+		i.offerPackageToTasks(tx, PackageFromJSON(v), true)
 	  }
 	  return nil
 	})
@@ -118,14 +118,19 @@ func (i *Indexer) CheckDownloadedExact(p Package) bool {
   return false
 }
 
-func (i *Indexer) releaseDownloaded(r *Release) (downloaded bool) {
-  err := i.db.Update(func(tx *bolt.Tx) error {
+func (i *Indexer) releaseDownloaded(tx *bolt.Tx, r *Release) (downloaded bool) {
 	dBucket := tx.Bucket([]byte("downloaded"))
 	if dBucket.Get([]byte(r.key())) != nil {
 	  downloaded = true
 	} else {
 	  downloaded = false
 	}
+  return downloaded
+}
+
+func (i *Indexer) ReleaseDownloaded(r *Release) (downloaded bool) {
+  err := i.db.Update(func(tx *bolt.Tx) error {
+	  downloaded = i.releaseDownloaded(tx, r)
 	return nil
   })
   if err != nil {
@@ -169,9 +174,9 @@ func (i *Indexer) CheckDownloaded(p Package) bool {
 	//i.db.LogMode(true)
 	r := i.getReleaseForPackage(p)//p.Parse() 
 	if r.Type == "movie" {
-		return i.releaseDownloaded(&Release{Release: releaseparser.Release{Type: r.Type, Title: r.Title, Year: r.Year}})
+		return i.ReleaseDownloaded(&Release{Release: releaseparser.Release{Type: r.Type, Title: r.Title, Year: r.Year}})
 	} else if (r.Type == "tvshow") {
-		return i.releaseDownloaded(&Release{Release: releaseparser.Release{Type: r.Type, Title: r.Title, Season: r.Season, Episode: r.Episode}})
+		return i.ReleaseDownloaded(&Release{Release: releaseparser.Release{Type: r.Type, Title: r.Title, Season: r.Season, Episode: r.Episode}})
 	}
 	return false
 }
@@ -280,21 +285,22 @@ func (i *Indexer) getReleaseForPackage(p Package) (release Release) {
 	return release
 }
 
-func (i *Indexer) AddNewPackageSubscription(ch chan Package) {
+func (i *Indexer) AddNewPackageSubscription(ch chan PackageMsg) {
 	i.pckgChs = append(i.pckgChs, ch)
 }
 
-func (i *Indexer) offerPackageToTasks(p Package, block bool) {
+func (i *Indexer) offerPackageToTasks(tx *bolt.Tx, p Package, block bool) {
+	pd := PackageMsg{Package: p, Downloaded:i.releaseDownloaded(tx, &p.Release)}
   for _,ch := range i.pckgChs {
 	if !block {
 	  select {
-		  case ch<-p:
+		  case ch<-pd:
 		  default:
 			log.Print("offer channel full")
 	  }
 	} else {
 	  select {
-		  case ch<-p:
+		  case ch<-pd:
 		  case <-time.After(1*time.Second):
 			log.Print("blocked 1 sec, timeout")
 	  }
@@ -361,7 +367,7 @@ func (i *Indexer) addPackage(tx *bolt.Tx, p Package) {
 	  p.ID = p.key()
 	  
 	  if pDb == nil || PackageFromJSON(pDb).isDifferentTo(p) {
-		i.offerPackageToTasks(p, false)
+		i.offerPackageToTasks(tx, p, false)
 	  }
 	  
 	  pBucket.Put([]byte(p.key()), p.json())

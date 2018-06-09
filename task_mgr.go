@@ -16,9 +16,13 @@ type Taskmgr struct {
 	sync.Mutex
 	indx *Indexer
 	dlm *DownloadManager
-	pckgCh chan Package
+	pckgCh chan PackageMsg
 	db *bolt.DB
 	tasks []*Task
+}
+type PackageMsg struct {
+	Package Package
+	Downloaded bool
 }
 
 func CreateTaskmgr(indx *Indexer, dlm *DownloadManager, conf *Config) *Taskmgr {
@@ -38,7 +42,7 @@ func CreateTaskmgr(indx *Indexer, dlm *DownloadManager, conf *Config) *Taskmgr {
 
 	t.dlm = dlm
 
-	t.pckgCh = make(chan Package,1000)
+	t.pckgCh = make(chan PackageMsg,100)
 	indx.AddNewPackageSubscription(t.pckgCh)
 	go t.PackageWorker()
 	//go t.EnqueueAllFromDB()
@@ -50,7 +54,9 @@ func (tm *Taskmgr) PackageWorker() {
 	for {
 		select {
 		case p:=<-tm.pckgCh:
-			tm.EnqueueAll(p)
+			if !p.Downloaded {
+				tm.EnqueueAll(p.Package)
+			}
 		}
 	}
 }
@@ -58,7 +64,7 @@ func (tm *Taskmgr) PackageWorker() {
 func (tm *Taskmgr) EnqueueAll(p Package) {
 	for _,tl := range(tm.tasks) {
 		if tl != nil {
-			if tl.MatchesCriterias(p) && !tm.indx.CheckDownloaded(p) {
+			if tl.MatchesCriterias(p) {
 				go tl.enqueue(p, true)
 			}
 		}
