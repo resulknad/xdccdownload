@@ -108,7 +108,8 @@ func (i *Indexer) AddDownloaded(r Release) {
 	return nil
   })
   if err != nil {
-	panic(err)
+	  log.Print("bolt err")
+	  log.Print(err)
   }
 }
 
@@ -128,7 +129,8 @@ func (i *Indexer) releaseDownloaded(r *Release) (downloaded bool) {
 	return nil
   })
   if err != nil {
-	panic(err)
+	  log.Print("bolt err")
+	  log.Print(err)
   }
   return downloaded
 }
@@ -241,7 +243,8 @@ func PackageFromJSON(b []byte) Package {
   var r Package
   err := json.Unmarshal(b, &r)
   if err != nil {
-	panic(err)
+	  log.Print("json err")
+	  log.Print(err)
   }
   return r
 }
@@ -267,7 +270,8 @@ func (i *Indexer) getReleaseForPackage(p Package) (release Release) {
 		return nil
 	  })
 	  if err != nil {
-		panic(err)
+	  log.Print("bolt err")
+	  log.Print(err)
 	  }
 	} else {
 	  release = p.Release
@@ -289,7 +293,11 @@ func (i *Indexer) offerPackageToTasks(p Package, block bool) {
 			log.Print("offer channel full")
 	  }
 	} else {
-	  ch<-p
+	  select {
+		  case ch<-p:
+		  case <-time.After(1*time.Second):
+			log.Print("blocked 1 sec, timeout")
+	  }
 	}
   }
 }
@@ -372,7 +380,8 @@ func (i *Indexer) RemovePackage(p *Package) {
 	return nil
   })
   if err != nil {
-	panic(err)
+	  log.Print("bolt err")
+	  log.Print(err)
   }
 }
 func (i *Indexer) removePackage(tx *bolt.Tx, p *Package) {
@@ -456,7 +465,8 @@ func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
 						})
 
 						if err != nil {
-						  panic(err)
+						  log.Print("bolt err")
+						  log.Print(err)
 						}
 						log.Print("written to db")
 						cache = []Package{}

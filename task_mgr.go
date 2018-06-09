@@ -38,7 +38,7 @@ func CreateTaskmgr(indx *Indexer, dlm *DownloadManager, conf *Config) *Taskmgr {
 
 	t.dlm = dlm
 
-	t.pckgCh = make(chan Package,100)
+	t.pckgCh = make(chan Package,1000)
 	indx.AddNewPackageSubscription(t.pckgCh)
 	go t.PackageWorker()
 	//go t.EnqueueAllFromDB()
