@@ -100,11 +100,14 @@ func (i *Indexer) ExpirePackages() {
   }
 }
 
-func (i *Indexer) AddDownloaded(r Release) {
-  err := i.db.Update(func(tx *bolt.Tx) error {
+func (i *Indexer) addDownloaded(tx *bolt.Tx, r Release) {
 	dBucket := tx.Bucket([]byte("downloaded"))
 	dBucket.Put([]byte(r.key()), []byte(r.json()))
 	log.Print("putting " + r.key() + " = " + string(r.json()))
+}
+func (i *Indexer) AddDownloaded(r Release) {
+  err := i.db.Update(func(tx *bolt.Tx) error {
+	  i.addDownloaded(tx, r)
 	return nil
   })
   if err != nil {
@@ -144,6 +147,8 @@ func (i *Indexer) ReleaseDownloaded(r *Release) (downloaded bool) {
 func (i *Indexer) ResetDownloaded() bool {
 	// tx := i.db.Begin()
 
+  i.db.Update(func(tx *bolt.Tx) error {
+
 	// tx.Exec("DELETE FROM downloadeds;")
 	for _,dir := range i.Conf.GetDirs() {
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -154,7 +159,7 @@ func (i *Indexer) ResetDownloaded() bool {
 			if !info.IsDir() {
 			  p := Package{Filename: info.Name()}
 			  r := p.Parse()
-			  i.AddDownloaded(r)
+			  i.addDownloaded(tx, r)
 			}
 			fmt.Printf("visited file: %q\n", path)
 			return nil
@@ -165,6 +170,8 @@ func (i *Indexer) ResetDownloaded() bool {
 		}
 
 	}
+	return nil
+  })
 	//err := tx.Commit()
 	//return err != nil
 	return true
