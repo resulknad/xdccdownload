@@ -196,10 +196,10 @@ func (i *Indexer) EnrichWithIMDB(r *Release) {
 		id = i.imdb.GetIdForShow(r.Title)
 	}
 	if id != "" {
-		rating, num := i.imdb.GetRating(id)	
+		rating, _ := i.imdb.GetRating(id)	
 		r.IMDBId = id
 		r.AvgRating = rating
-		r.NumVotes = num
+		// r.NumVotes = num
 	}
 }
 
@@ -369,6 +369,7 @@ func (i *Indexer) addPackage(tx *bolt.Tx, p Package) {
 		p.Release = ReleaseFromJSON(release)
 	  } else {
 		p.Release = p.Parse()
+		i.EnrichWithIMDB(&p.Release)
 		rBucket.Put([]byte(p.Filename), p.Release.json())
 	  }
 	  p.ID = p.key()

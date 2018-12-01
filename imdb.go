@@ -1,4 +1,5 @@
 package main 
+
 import "net/http"
 import "compress/gzip"
 import "io"
@@ -11,8 +12,7 @@ import "strings"
 import "log"
 
 import (
-     "github.com/jinzhu/gorm"
-     _"github.com/jinzhu/gorm/dialects/sqlite"
+     "github.com/boltdb/bolt"
 )
 
 func CreateIMDB(c *Config) *IMDB{
@@ -23,8 +23,8 @@ func CreateIMDB(c *Config) *IMDB{
 
 type IMDB struct {
 	conf *Config
-	db *gorm.DB
-	tx *gorm.DB
+	db *bolt.DB
+	tx *bolt.Tx
 }
 /*
 
@@ -34,7 +34,6 @@ type IMDB struct {
     Package string `gorm:"index:pckg"`
 	*/
 type TitleBasic struct {
-	gorm.Model
 	Tconst string `gorm:"index"`
 	TitleType string `gorm:"index:tt,mv,show"`
 	PrimaryTitle string `gorm:"index:pt,mv,show"`
@@ -48,69 +47,84 @@ type TitleBasic struct {
 
 
 type TitleRating struct {
-	gorm.Model
 	Tconst string `gorm:"index"`
 	AverageRating float64
 	NumVotes int
 }
 
 func (i *IMDB) GetIdForMovie(title string, year int) string {
-	var movie TitleBasic
-	i.db.Where("title_type = ? AND primary_title = ? and start_year = ?", "movie", title, year).First(&movie)
-	//i.db.Where(TitleBasic{TitleType: "movie", PrimaryTitle: title, StartYear: year}).First(&movie)
-	if title != "" && movie.ID != 0 {
-		return movie.Tconst
-	} else {
-		return ""
-	}
+  v := ""
+  i.db.View(func(tx *bolt.Tx) error {
+	b := tx.Bucket([]byte("imdbid"))
+	v = fmt.Sprintf("%s",b.Get([]byte(i.key("movie", year, title))))
+	return nil
+  })
+  return v
 }
 
 func (i *IMDB) GetIdForShow(title string) string {
-	var movie TitleBasic
-	i.db.Where("title_type = ? AND primary_title = ?", "tvSeries", title).First(&movie)
-	//i.db.Where(TitleBasic{TitleType: "tvSeries", PrimaryTitle: title}).First(&movie)
-	if title != "" && movie.ID != 0 {
-		return movie.Tconst
-	} else {
-		return ""
-	}
+  v := ""
+  i.db.View(func(tx *bolt.Tx) error {
+	b := tx.Bucket([]byte("imdbid"))
+	v = fmt.Sprintf("%s", b.Get([]byte(i.key("tvSeries", 0, title))))
+	return nil
+  })
+  return v
 }
 
 func (i *IMDB) GetRating(id string) (float64, int) {
-	var rating TitleRating
-	i.db.Where(TitleRating{Tconst: id}).First(&rating)
-	return rating.AverageRating, rating.NumVotes
+  v := 0.0
+  i.db.View(func(tx *bolt.Tx) error {
+	b := tx.Bucket([]byte("rating"))
+	v,_ = strconv.ParseFloat(fmt.Sprintf("%s", b.Get([]byte(id))), 64)
+	return nil
+  })
+  return v, 0
+}
+
+func (i *IMDB) key(kind string, year int, title string) string {
+  if kind == "movie" {
+	return fmt.Sprintf("%s:%d:%s", kind, year, strings.ToLower(title))
+  } else {
+	return fmt.Sprintf("%s:%s", kind, strings.ToLower(title))
+  }
 }
 
 func (i *IMDB) SetupDB() {
-  p := path.Join(i.conf.DBPath, ".imdb.db")
-  db, err := gorm.Open("sqlite3", p)
+  fmt.Println("setting up db")
+  p := path.Join(i.conf.DBPath, ".imdb.bdb")
+  db, err := bolt.Open(p, 0600, nil)
   if err != nil {
     panic("failed to connect database")
   }
+
+  db.Update(func(tx *bolt.Tx) error {
+	  tx.CreateBucketIfNotExists([]byte("imdbid"))
+	  tx.CreateBucketIfNotExists([]byte("rating"))
+	return nil
+  })
   i.db = db
-  db.AutoMigrate(&TitleBasic{})
-  db.AutoMigrate(&TitleRating{})
+  fmt.Println("done setting up db")
 }
 
 func (i *IMDB) UpdateData() (suc bool) {
 	log.Print("Updating data")
-	defer func() {
-		if recover() != nil {
-			suc = false
-		}
-	}()
 	suc = true
 	i.downloadData()
-	i.tx = i.db.Begin() // create transaction
-	i.tx.Exec("DELETE FROM title_ratings; DELETE FROM title_basics;") // delete everything
+	err := i.db.Update(func(tx *bolt.Tx) error {
+	  tx.DeleteBucket([]byte("imdbid"))
+	  tx.CreateBucketIfNotExists([]byte("imdbid"))
+	  tx.DeleteBucket([]byte("rating"))
+	  tx.CreateBucketIfNotExists([]byte("rating"))
+	  i.tx = tx
+	  i.readTSV(path.Join(i.conf.TempPath, "title.basics.tsv.gz"), handleTitleBasics)
+	  i.readTSV(path.Join(i.conf.TempPath, "title.ratings.tsv.gz"), handleTitleRatings)
+	  return nil
+	})
 
-	i.readTSV(path.Join(i.conf.TempPath, "title.basics.tsv.gz"), handleTitleBasics)
-	i.readTSV(path.Join(i.conf.TempPath, "title.ratings.tsv.gz"), handleTitleRatings)
-	if i.tx.Commit().Error != nil {
-		suc = false
+	if err != nil {
+	  panic(err)
 	}
-	i.db.Exec("VACUUM;") // make sqlite actually delete stuff
 	log.Print("Done updating data")
 	return suc
 }
@@ -146,7 +160,7 @@ func (i* IMDB) downloadFile(filepath string, url string) (err error) {
 }
 
 func (i *IMDB) downloadData() {
-	basePath := "https://datasets.imdbws.com/"
+  basePath := "http://localhost:8000/"
 	files := []string{"title.basics.tsv.gz", "title.ratings.tsv.gz"}
 	for _,f := range files {
 		targetFile := path.Join(i.conf.TempPath,f)
@@ -157,51 +171,26 @@ func (i *IMDB) downloadData() {
 	}
 }
 
-func handleTitleBasics(i *IMDB,vals []string) {
-	StartYear, err1:= strconv.Atoi(vals[5])
-	EndYear, err2 := strconv.Atoi(vals[6])
-	RuntimeMinutes, err3 := strconv.Atoi(vals[7])
-	
-	if (err1 == nil || vals[5] == "") &&
-	   (err2 == nil || vals[6] == "") &&
-	   (err3 == nil || vals[7] == "") {
-		t := TitleBasic{}
-		t.Tconst = vals[0]
-		t.TitleType = vals[1]
-		t.PrimaryTitle = cleanTitle(vals[2])
-		t.OriginalTitle = cleanTitle(vals[3])
-		t.IsAdult = vals[4]
-		t.StartYear = StartYear
-		t.EndYear = EndYear
-		t.RuntimeMinutes = RuntimeMinutes
-		t.Genres = vals[8]
-		if t.TitleType == "movie" || t.TitleType == "tvSeries" {
-			i.tx.Create(&t)	
+func handleTitleBasics(imdbid *bolt.Bucket, ratings *bolt.Bucket,i *IMDB,vals []string) {
+	StartYear, _:= strconv.Atoi(vals[5])	
+	  imId := vals[0]
+	  TitleType := vals[1]
+	  if TitleType == "movie" || TitleType == "tvSeries" {	
+		err := imdbid.Put([]byte(i.key(TitleType,StartYear, cleanTitle(vals[2]))), []byte(imId))
+		if err != nil {
+		  panic(err)
 		}
-	} else {
-		fmt.Print(vals)
-		panic("int parse error")
+	  }
+}
+
+func handleTitleRatings(imdbid *bolt.Bucket, ratings *bolt.Bucket, i *IMDB,vals []string) {
+	err := ratings.Put([]byte(vals[0]), []byte(vals[1]))
+	if err != nil {
+	  panic(err)
 	}
 }
 
-func handleTitleRatings(i *IMDB,vals []string) {
-	AvgRating, err1:= strconv.ParseFloat(vals[1], 64)
-	NumVotes, err2 := strconv.Atoi(vals[2])
-	
-	if (err1 == nil) &&
-	   (err2 == nil) {
-		t := TitleRating{}
-		t.Tconst = vals[0]
-		t.AverageRating = AvgRating
-		t.NumVotes = NumVotes
-		i.tx.Create(&t)	
-	} else {
-		fmt.Print(vals)
-		panic("int parse error")
-	}
-}
-
-func (i *IMDB) readTSV(file string, handle func(*IMDB, []string)) {
+func (i *IMDB) readTSV(file string, handle func(*bolt.Bucket, *bolt.Bucket,*IMDB, []string)) {
 	f, _ := os.Open(file)
 	reader, _ := gzip.NewReader(f)
 	scanner := bufio.NewScanner(reader)
@@ -211,7 +200,9 @@ func (i *IMDB) readTSV(file string, handle func(*IMDB, []string)) {
 			first = false
 			continue
 		}
-		handle(i, strings.Split(strings.Replace(scanner.Text(), "\\N", "", -1), "\t"))
+		imdbid := i.tx.Bucket([]byte("imdbid"))
+		ratings := i.tx.Bucket([]byte("rating"))
+		handle(imdbid, ratings, i, strings.Split(strings.Replace(scanner.Text(), "\\N", "", -1), "\t"))
 	}
 }
 
