@@ -160,7 +160,7 @@ func (i* IMDB) downloadFile(filepath string, url string) (err error) {
 }
 
 func (i *IMDB) downloadData() {
-  basePath := "http://localhost:8000/"
+  basePath := "https://datasets.imdbws.com/"
 	files := []string{"title.basics.tsv.gz", "title.ratings.tsv.gz"}
 	for _,f := range files {
 		targetFile := path.Join(i.conf.TempPath,f)
