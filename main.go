@@ -39,7 +39,7 @@ func main() {
     //}
 
 	if len(os.Args) > 1 && os.Args[1] == "update" {
-		imdb := CreateIMDB(&c)
+	  imdb := indx.imdb
 		imdb.UpdateData()
 		indx.EnrichAll()
 	}
