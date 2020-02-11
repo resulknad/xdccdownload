@@ -14,10 +14,13 @@
                   <b-form-input v-model="el.Criteria" type="text" placeholder="Criteria"></b-form-input>
                       <br>
                       <div>
-                          {{el.Enabled}}
                       <input type="checkbox" v-model="el.Enabled">
                       </input>
                       </div>
+                      <h5>Queued (max 10)</h5>
+                      <b-list-group>
+                        <b-list-group-item v-for="p in el.Packages">{{p.Filename}}</b-list-group-item>
+                      </b-list-group>
               </b-modal>
 
     </div>

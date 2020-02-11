@@ -2,41 +2,40 @@ package main
 import "time"
 import "log"
 import "path/filepath"
+import "encoding/json"
 import "strings"
 import "strconv"
 import "regexp"
 import "os"
 import "path"
 import "fmt"
-import "math/rand"
 import (
-     "github.com/jinzhu/gorm"
-     _"github.com/jinzhu/gorm/dialects/sqlite"
-	 "github.com/cytec/releaseparser"
+  	"github.com/boltdb/bolt"
+	"github.com/cytec/releaseparser"
 )
 
 
 type Indexer struct {
     Conf *Config
-    db *gorm.DB
+    db *bolt.DB
     connPool *ConnectionPool
 	imdb *IMDB
-	pckgChs [] (chan Package)
+	pckgChs [] (chan PackageMsg)
+	timeToScan chan bool
 	announcementCh chan PrivMsg
 }
 
 type Package struct {
-    gorm.Model
-    Server string `gorm:"index:pckg"`
-    Channel string `gorm:"index:pckg"`
-    Bot string `gorm:"index:pckg"`
-    Package string `gorm:"index:pckg"`
+	ID string
+    Server string
+    Channel string
+    Bot string
+    Package string
     Filename string
     Size string
     Gets string
     Time string
-	ReleaseID uint
-	Release Release  `gorm:"foreignkey:ReleaseID"` 
+	Release Release
 }
 
 type Release struct {
@@ -44,42 +43,111 @@ type Release struct {
 	AvgRating float64
 	NumVotes int
 	releaseparser.Release
-	gorm.Model
 }
 
 type Downloaded struct {
-	gorm.Model
 	Filename string
 	Location string
 	ReleaseID uint
 }
 
-func (i *Indexer) AddDownloaded(p Package) {
-	r := i.getReleaseForPackage(p)
-	rID := r.ID
+func (i *Indexer) TriggerRescan() {
+  select {
+  case i.timeToScan<-true:
+  default:
+  }
+}
 
-	d := Downloaded{Filename: p.Filename, Location: "", ReleaseID: rID}
-    i.db.Create(&d)
+func (i *Indexer) OfferAllToTasks() {
+  for {
+	log.Print("starting to offer all packages to tasks")
+	i.db.View(func(tx *bolt.Tx) error {
+	  pBucket := tx.Bucket([]byte("packages"))
+	  c := pBucket.Cursor()
+	  for k, v := c.First(); k != nil; k, v = c.Next() {
+		i.offerPackageToTasks(tx, PackageFromJSON(v), true)
+	  }
+	  return nil
+	})
+	log.Print("done to offer all packages to tasks")
+	select {
+	  case <-time.After(10*time.Minute):
+	  case <-i.timeToScan:
+	  log.Print("full db scan triggered")
+	}
+
+  }
+}
+
+func (i *Indexer) ExpirePackages() {
+  for {
+	i.db.Update(func(tx *bolt.Tx) error {
+	  expirationTime := time.Now().Add(-4 * time.Hour)
+	  pBucket := tx.Bucket([]byte("packages"))
+	  c := pBucket.Cursor()
+	  for k, v := c.First(); k != nil; k, v = c.Next() {
+		p := PackageFromJSON(v)
+		t,_ := time.Parse(time.RFC850, p.Time)
+		if t.Before(expirationTime) {
+		  i.removePackage(tx, &p)
+		}
+	  }
+	  return nil
+	})
+	
+
+	time.Sleep(10*time.Minute)
+  }
+}
+
+func (i *Indexer) addDownloaded(tx *bolt.Tx, r Release) {
+	dBucket := tx.Bucket([]byte("downloaded"))
+	dBucket.Put([]byte(r.key()), []byte(r.json()))
+	log.Print("putting " + r.key() + " = " + string(r.json()))
+}
+func (i *Indexer) AddDownloaded(r Release) {
+  err := i.db.Update(func(tx *bolt.Tx) error {
+	  i.addDownloaded(tx, r)
+	return nil
+  })
+  if err != nil {
+	  log.Print("bolt err")
+	  log.Print(err)
+  }
 }
 
 func (i *Indexer) CheckDownloadedExact(p Package) bool {
-	//i.db.LogMode(true)
-	r := i.getReleaseForPackage(p)//p.Parse() 
-	r.ID =	0 
-	return i.releaseDownloaded(&r)
+  panic("not implemented")
+  return false
 }
 
-func (i *Indexer) releaseDownloaded(r *Release) bool {
-		res, err := i.db.Table("releases").Select("*").Joins("left join downloadeds on releases.id = downloadeds.release_id").Where(r).Where("downloadeds.id > -1").Limit(1).Rows()	
-		//if err == nil {
-		defer res.Close()
-		//}
-		return (err == nil) && (res.Next())
-
+func (i *Indexer) releaseDownloaded(tx *bolt.Tx, r *Release) (downloaded bool) {
+	dBucket := tx.Bucket([]byte("downloaded"))
+	if dBucket.Get([]byte(r.key())) != nil {
+	  downloaded = true
+	} else {
+	  downloaded = false
+	}
+  return downloaded
 }
+
+func (i *Indexer) ReleaseDownloaded(r *Release) (downloaded bool) {
+  err := i.db.Update(func(tx *bolt.Tx) error {
+	  downloaded = i.releaseDownloaded(tx, r)
+	return nil
+  })
+  if err != nil {
+	  log.Print("bolt err")
+	  log.Print(err)
+  }
+  return downloaded
+}
+
 
 func (i *Indexer) ResetDownloaded() bool {
 	// tx := i.db.Begin()
+
+  i.db.Update(func(tx *bolt.Tx) error {
 
 	// tx.Exec("DELETE FROM downloadeds;")
 	for _,dir := range i.Conf.GetDirs() {
@@ -89,11 +157,9 @@ func (i *Indexer) ResetDownloaded() bool {
 				return err
 			}
 			if !info.IsDir() {
-				p := Package{Filename: info.Name()}
-				r := i.getReleaseForPackage(p)
-				rID := r.ID
-				d := Downloaded{Filename: p.Filename, Location: "", ReleaseID: rID}
-				i.db.Create(&d)
+			  p := Package{Filename: info.Name()}
+			  r := p.Parse()
+			  i.addDownloaded(tx, r)
 			}
 			fmt.Printf("visited file: %q\n", path)
 			return nil
@@ -104,6 +170,8 @@ func (i *Indexer) ResetDownloaded() bool {
 		}
 
 	}
+	return nil
+  })
 	//err := tx.Commit()
 	//return err != nil
 	return true
@@ -113,9 +181,9 @@ func (i *Indexer) CheckDownloaded(p Package) bool {
 	//i.db.LogMode(true)
 	r := i.getReleaseForPackage(p)//p.Parse() 
 	if r.Type == "movie" {
-		return i.releaseDownloaded(&Release{Release: releaseparser.Release{Type: r.Type, Title: r.Title, Year: r.Year}})
+		return i.ReleaseDownloaded(&Release{Release: releaseparser.Release{Type: r.Type, Title: r.Title, Year: r.Year}})
 	} else if (r.Type == "tvshow") {
-		return i.releaseDownloaded(&Release{Release: releaseparser.Release{Type: r.Type, Title: r.Title, Season: r.Season, Episode: r.Episode}})
+		return i.ReleaseDownloaded(&Release{Release: releaseparser.Release{Type: r.Type, Title: r.Title, Season: r.Season, Episode: r.Episode}})
 	}
 	return false
 }
@@ -128,14 +196,15 @@ func (i *Indexer) EnrichWithIMDB(r *Release) {
 		id = i.imdb.GetIdForShow(r.Title)
 	}
 	if id != "" {
-		rating, num := i.imdb.GetRating(id)	
+		rating, _ := i.imdb.GetRating(id)	
 		r.IMDBId = id
 		r.AvgRating = rating
-		r.NumVotes = num
+		// r.NumVotes = num
 	}
 }
 
 func (i *Indexer) EnrichAll() { 
+  /*
     var rs []Release
 	tx := i.db.Begin()
 	i.db.Where(Release{IMDBId:""}).Find(&rs)
@@ -145,10 +214,11 @@ func (i *Indexer) EnrichAll() {
 		log.Print(r)
 	}
 	tx.Commit()
+	*/
 }
 
-func (p *Package) Parse() releaseparser.Release {
-	return *releaseparser.Parse(p.Filename)
+func (p Package) Parse() Release {
+	return Release{Release: *releaseparser.Parse(p.Filename)}
 }
 
 func (p *Package) SizeMbytes() float64 {
@@ -181,99 +251,240 @@ func (p *Package) TargetFolder() string {
 	} 
 }
 
-func (i *Indexer) getReleaseForPackage(p Package) Release {
-	if p.Release.ID != 0 {
-		return p.Release
-	}
-	var release Release
-	for release.ID == 0 {
-		parsed := p.Parse()	
-		i.db.Where(&parsed).First(&release)
-		if release.ID == 0 {
-			release.Release = parsed
-			i.EnrichWithIMDB(&release)
-			i.db.Save(&release)
-		}
-	}
-	return release	
+func PackageFromJSON(b []byte) Package {
+  var r Package
+  err := json.Unmarshal(b, &r)
+  if err != nil {
+	  log.Print("json err")
+	  log.Print(err)
+  }
+  return r
 }
 
-func (i *Indexer) AddNewPackageSubscription(ch chan Package) {
+func ReleaseFromJSON(b []byte) Release {
+  var r Release
+  err := json.Unmarshal(b, &r)
+  if err != nil {
+	panic("couldnt parse json")
+  }
+  return r
+}
+
+func (i *Indexer) getReleaseForPackage(p Package) (release Release) {
+	if p.Release.Type == "" {
+	  err := i.db.View(func(tx *bolt.Tx) error {
+		rBucket := tx.Bucket([]byte("releases"))
+		if r := rBucket.Get([]byte(p.Filename)); r != nil {
+		  release = ReleaseFromJSON(r)
+		} else {
+		  release = p.Parse()
+		}
+		return nil
+	  })
+	  if err != nil {
+	  log.Print("bolt err")
+	  log.Print(err)
+	  }
+	} else {
+	  release = p.Release
+	}
+
+	return release
+}
+
+func (i *Indexer) AddNewPackageSubscription(ch chan PackageMsg) {
 	i.pckgChs = append(i.pckgChs, ch)
 }
 
+func (i *Indexer) offerPackageToTasks(tx *bolt.Tx, p Package, block bool) {
+	pd := PackageMsg{Package: p, Downloaded:i.releaseDownloaded(tx, &p.Release)}
+  for _,ch := range i.pckgChs {
+	if !block {
+	  select {
+		  case ch<-pd:
+		  default:
+			log.Print("offer channel full")
+	  }
+	} else {
+	  select {
+		  case ch<-pd:
+		  case <-time.After(1*time.Second):
+			log.Print("blocked 1 sec, timeout")
+	  }
+	}
+  }
+}
+
 func (i *Indexer) AddPackage(p Package) {
-	p.ReleaseID = i.getReleaseForPackage(p).ID
-    if !i.UpdateIfExists(p) {
-        i.db.Create(&p)
-		for _,ch := range i.pckgChs {
-			select {
-				case ch<-p:
-				default:
-			}
-		}
-    }
+  panic("not implemented")
+    /*if !i.UpdateIfExists(p) {
+	  // p.Release = i.getReleaseForPackage(p)
+
+  }
+  */
 }
 
-func (i *Indexer) UpdateIfExists(p Package) bool {
-    var pDb Package
-    i.db.Where("Server = ? AND Bot=? AND Package=? AND Channel=?", p.Server, p.Bot, p.Package, p.Channel).First(&pDb)
-    if pDb.ID > 0  { // gorms wants this
-        if pDb.Filename != p.Filename || rand.Intn(3) == 8 {
-            i.db.Model(&pDb).Updates(Package{Filename: p.Filename, ReleaseID:p.ReleaseID, Size: p.Size, Gets: p.Gets, Time: time.Now().Format(time.RFC850)})
-        }
-        return true
-    }
-    return false
+func (p Release) key() string {
+  return strings.ToLower(fmt.Sprintf("%s:%d:%s:%d:%d", p.Type, p.Year,p.Title, p.Season, p.Episode))
 }
 
-func (i *Indexer) GetPackage(id int) (bool, Package) {
+func (p Package) key() string {
+  return p.Server + ":" + p.Channel + ":" + p.Bot + ":" + p.Package
+}
+
+func (p Package) isDifferentTo(p2 Package) bool {
+  if p.Filename != p2.Filename {
+	return true
+  } else {
+	return false
+  }
+}
+
+func (p Release) json() []byte {
+  b, err := json.Marshal(p)
+  if err == nil {
+	return b
+  } else {
+	return []byte("")
+  }
+}
+func (p Package) json() []byte {
+  b, err := json.Marshal(p)
+  if err == nil {
+	return b
+  } else {
+	return []byte("")
+  }
+}
+
+func (i *Indexer) addPackage(tx *bolt.Tx, p Package) {
+	  pBucket := tx.Bucket([]byte("packages"))
+	  rBucket := tx.Bucket([]byte("releases"))
+
+	  pDb := pBucket.Get([]byte(p.key()))
+
+	  
+
+	  if release := rBucket.Get([]byte(p.Filename)); release != nil {
+		p.Release = ReleaseFromJSON(release)
+	  } else {
+		p.Release = p.Parse()
+		i.EnrichWithIMDB(&p.Release)
+		rBucket.Put([]byte(p.Filename), p.Release.json())
+	  }
+	  p.ID = p.key()
+	  
+	  if pDb == nil || PackageFromJSON(pDb).isDifferentTo(p) {
+		i.offerPackageToTasks(tx, p, false)
+	  }
+	  
+	  pBucket.Put([]byte(p.key()), p.json())
+
+}
+
+/*func (i *Indexer) GetPackage(id int) (bool, Package) {
     var pack Package
     i.db.First(&pack, id)
     return true, pack
-}
+}*/
+
 func (i *Indexer) RemovePackage(p *Package) {
-    i.db.Delete(p) // cleanup
+  err := i.db.Update(func(tx *bolt.Tx) error {
+	i.removePackage(tx, p)
+	return nil
+  })
+  if err != nil {
+	  log.Print("bolt err")
+	  log.Print(err)
+  }
+}
+func (i *Indexer) removePackage(tx *bolt.Tx, p *Package) {
+  tx.Bucket([]byte("packages")).Delete([]byte(p.key()))
 }
 
 func (i *Indexer) Search(name string) []Package {
-    i.db.Unscoped().Delete(Package{}, "updated_at < date('now', '-1 day')") // cleanup
-    var pckgs []Package
-    i.db.Where("Filename LIKE ?", name).Limit(200).Preload("Release").Find(&pckgs)
-	/*for indx, _ := range(pckgs) {
-		// enrich with parsed release info
-		pckgs[indx].Parsed = i.getReleaseForPackage(pckgs[indx])
-	}*/
-    return pckgs
+  var res []Package
+  var count int64
+  i.db.View(func(tx *bolt.Tx) error {
+	pBucket := tx.Bucket([]byte("packages"))
+	words := strings.Split(strings.ToLower(name), " ")
 
+	  c := pBucket.Cursor()
+	  for k, v := c.First(); k != nil; k, v = c.Next() {
+		  count++
+		  containsAll := true
+		for _,w := range words {
+			if !strings.Contains(strings.ToLower(string(v)), w) {
+				containsAll = false
+				break
+			}
+		  }
+		  if containsAll {
+			  res = append(res, PackageFromJSON(v))
+		  }
+	  }
+	  return nil
+  })
+  log.Print("searched through ",count)
+  return res
 }
 
 func (i *Indexer) SetupDB() {
-  p := path.Join(i.Conf.DBPath, ".indexer.db")
-  db, err := gorm.Open("sqlite3", p)
+  p := path.Join(i.Conf.DBPath, ".indexer.bdb")
+
+  db, err := bolt.Open(p, 0600, nil)
   if err != nil {
-    panic("failed to connect database")
+	  log.Fatal(err)
   }
+  db.Update(func(tx *bolt.Tx) error {
+	tx.CreateBucketIfNotExists([]byte("packages"))
+	tx.CreateBucketIfNotExists([]byte("releases"))
+	tx.CreateBucketIfNotExists([]byte("downloaded"))
+	return nil
+  })
   i.db = db
-  i.db.Exec("PRAGMA journal_mode=WAL;")
-  db.AutoMigrate(&Package{})
-  db.AutoMigrate(&Release{})
-  db.AutoMigrate(&Downloaded{})
+}
+
+func (i *Indexer) GetPackage(id string) (found bool, p Package) {
+  i.db.View(func(tx *bolt.Tx) error {
+	v := tx.Bucket([]byte("packages")).Get([]byte(id))
+	if v == nil {
+	  found = false
+	} else {
+	  found = true
+	  p = PackageFromJSON(v)
+	}
+	return nil
+  })
+  return found, p
 }
 
 func (indx* Indexer) WaitForPackages(ch chan PrivMsg) {
     listingRegexp := regexp.MustCompile(`(#[0-9]*)[^0-9]*([0-9]*x)[^\[]*\[([ 0-9.]+(?:M|G)?)\][^\x21-\x7E]*(.*)`)
 	colorRegexp := regexp.MustCompile(`\x03[0-9,]*([^\x03]*)\x03`)
+	var cache []Package
     for {
         select {
             case msg := <-ch:
                 if listingRegexp.MatchString(msg.Content) {
+					matches := listingRegexp.FindStringSubmatch(colorRegexp.ReplaceAllString(msg.Content, "$1"))
+					nmb, gets, size, name := matches[1], matches[2], strings.Trim(matches[3]," \r\n\u000f"), strings.Trim(matches[4], " \r\n\u000f")
+					cache= append(cache, Package{Server: msg.Server, Channel: msg.To, Bot: msg.From, Package: nmb, Filename: name, Size: size, Gets: gets, Time: time.Now().Format(time.RFC850)})
+					if len(cache) > 99 {
+						err := indx.db.Update(func(tx *bolt.Tx) error {
+							for _,p := range cache {
+								indx.addPackage(tx, p)
+							}
+							return nil
+						})
 
-
-                    matches := listingRegexp.FindStringSubmatch(colorRegexp.ReplaceAllString(msg.Content, "$1"))
-                    nmb, gets, size, name := matches[1], matches[2], strings.Trim(matches[3]," \r\n\u000f"), strings.Trim(matches[4], " \r\n\u000f")
-                    indx.AddPackage(Package{Server: msg.Server, Channel: msg.To, Bot: msg.From, Package: nmb, Filename: name, Size: size, Gets: gets, Time: time.Now().Format(time.RFC850)})
-
+						if err != nil {
+						  log.Print("bolt err")
+						  log.Print(err)
+						}
+						log.Print("written to db")
+						cache = []Package{}
+					}
                 }
         }
     }
@@ -299,24 +510,28 @@ func (indx* Indexer) setupChannelListener(server string, channel string) bool {
 	return true
 }
 
+
+
 func CreateIndexer(c *Config, connPool *ConnectionPool) *Indexer {
-    indx := Indexer{Conf: c, connPool: connPool}
-    indx.SetupDB()
+  indx := Indexer{Conf: c, connPool: connPool, timeToScan: make(chan bool,1)}
+  indx.SetupDB()
 
-	indx.imdb = CreateIMDB(c)
+  indx.imdb = CreateIMDB(c)
 
-    indx.announcementCh = make(chan PrivMsg, 100)
-    for _,el := range c.Channels {
-		if !indx.setupChannelListener(el.Server, el.Channel) {
-			//return nil
-		}
-    }
+  indx.announcementCh = make(chan PrivMsg, 100)
+  for _,el := range c.Channels {
+	  if !indx.setupChannelListener(el.Server, el.Channel) {
+		  //return nil
+	  }
+  }
 
-	for i :=0; i<10; i++ {
-	    go indx.WaitForPackages(indx.announcementCh)
-	}
+  for i :=0; i<2; i++ {
+	  go indx.WaitForPackages(indx.announcementCh)
+  }
+  go indx.ExpirePackages()
+  go indx.OfferAllToTasks()
 
-    return &indx
+  return &indx
 }
 
 func (indx *Indexer) InitWatchDog() {

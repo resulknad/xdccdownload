@@ -1,0 +1,13 @@
+ version: '2'
+ services:
+    downloader:
+       container_name: 'downloader.dan'
+       build: .
+       tty: true
+       stdin_open: true
+       volumes:
+        - /home/dan/dldocker/:/root
+        - '/home/dan/dldockerdl/:/tvshows'
+        - '/home/dan/dldockerdl/:/movies'
+       ports:
+        - '8082:8082'

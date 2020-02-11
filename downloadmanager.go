@@ -10,7 +10,7 @@ import "github.com/elgs/gostrgen"
 
 type Download struct {
 	ID string
-    Packid int
+    Packid string
     Targetfolder string
     Pack Package
     Percentage float32
@@ -62,7 +62,6 @@ func (dm *DownloadManager) AllDownloads() []Download {
 
     // create copy, dereference dl objs
     for _,el:= range dm.List {
-        fmt.Println(el)
         dls = append(dls, *el)
     }
 

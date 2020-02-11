@@ -2,12 +2,12 @@ package main
 
 import "testing"
 import "os"
-import "path"
 import "fmt"
 
 func CIMDB() *IMDB {
 	c := (Config{})
 	c.TempPath = "tmp/"
+	c.DBPath = "tmp/"
 	os.Mkdir("tmp", os.ModePerm)
 	i := IMDB{conf:&c}
 	i.SetupDB()
@@ -15,6 +15,8 @@ func CIMDB() *IMDB {
 }
 
 func TestDownload(t *testing.T) {
+  /*
+  fmt.Println("test download")
 	i := CIMDB()	
 
 	i.downloadData()
@@ -25,24 +27,31 @@ func TestDownload(t *testing.T) {
 			t.FailNow()
 		  }
 	}
+	*/
 }
 
 func TestUpdateIMDB(t *testing.T) {
-	return
+  return
+  fmt.Println("test update")
 	i := CIMDB()
 	i.UpdateData()
+	i.db.Close()
 }
 
 func TestIMDBAccuracy(t *testing.T) {
+  fmt.Println("test accuracy")
 
 	i := CIMDB()
-	idd := i.GetIdForMovie("", 0)
+	/*idd := i.GetIdForMovie("", 0)
 	fmt.Println(idd)
 	if idd != "" {
 		t.FailNow()
-	}
-	rating, num := i.GetRating(i.GetIdForMovie("Interstellar", 2014))
-	if rating < 8 || num <100 {
+	}*/
+	rating, _ := i.GetRating(i.GetIdForShow("Narcos"))
+	  fmt.Println(rating)
+	if rating < 8  {
+
+	  panic("")
 		t.FailNow()
 	}
 }

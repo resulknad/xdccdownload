@@ -39,7 +39,7 @@ func main() {
     //}
 
 	if len(os.Args) > 1 && os.Args[1] == "update" {
-		imdb := CreateIMDB(&c)
+	  imdb := indx.imdb
 		imdb.UpdateData()
 		indx.EnrichAll()
 	}
@@ -52,8 +52,10 @@ func main() {
     dm := DownloadManagerRestAPI{dlm}
 
 
+// Creates a router without any middleware by default
+	router := gin.New()
+	router.Use(gin.Recovery())
 
-    router := gin.Default()
     config := cors.DefaultConfig()
     config.AllowAllOrigins = true
     config.AddAllowMethods("DELETE")
@@ -72,7 +74,8 @@ func main() {
     router.POST("/download/", dm.Create)
     router.PUT("/download/:id", dm.Update)
 
-	tm := CreateTaskmgr(indx, dlm)
+	
+	tm := CreateTaskmgr(indx, dlm, &c)
 	go tm.StartAllTasks()
     tm_api := TaskmgrEndpoints{tm}
 	router.GET("/tasks/", tm_api.All)

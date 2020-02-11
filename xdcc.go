@@ -35,7 +35,7 @@ func (i *XDCC) awaitFeedbackAfterRequest(ch chan PrivMsg) (string, bool) {
 	select {
 	case feedback := <-ch:
 		return feedback.Content, true
-	case <-time.After(15 * time.Second):
+	case <-time.After(30 * time.Second):
 		return "", false
 	}
 }
